@@ -87,14 +87,48 @@ h1, h2 {
     padding-bottom: var(--h1h2-padding-bottom, 0);
 }
 
-/* Fix code/mark/emoji inside headings: restore visible fill. */
-h1 code, h2 code, h3 code, h4 code, h5 code, h6 code,
-h1 mark, h2 mark, h3 mark, h4 mark, h5 mark, h6 mark {
+/* Inline elements inside a heading must opt out of the gradient text fill above,
+   which is inherited and would otherwise paint them transparent.
+   Do NOT reset `background` here: `code` and `mark` express themselves through
+   `background-color`, and the `background` shorthand erases the code box and the
+   highlight that make them recognisable. `background-clip` is not inherited, so
+   their own backgrounds already paint as ordinary boxes. */
+h1 code, h2 code, h3 code, h4 code, h5 code, h6 code {
     -webkit-text-fill-color: initial;
     color: var(--text-color, #333);
-    background: none;
-    background-clip: unset;
-    -webkit-background-clip: unset;
+}
+
+h1 mark, h2 mark, h3 mark, h4 mark, h5 mark, h6 mark {
+    -webkit-text-fill-color: initial;
+    /* Keep mark's own colour: it is chosen to contrast with --mark-bg, which
+       --text-color is not. */
+    color: var(--mark-color, #1a1a1a);
+}
+
+/* `**bold**` inside a heading is invisible by default: headings are already
+   font-weight 600, and the sans-serif families Marco's themes resolve to on most
+   Linux systems (Noto Sans, DejaVu Sans, Liberation Sans) ship only Regular and
+   Bold — so 600, 700, 800 and 900 all render as the same Bold face, and bumping
+   the weight alone changes nothing. Thickening the glyph outline is
+   font-independent, so it shows up regardless of which weights are installed.
+   The stroke colour has to be the heading colour rather than `currentColor`:
+   `strong` sets its own `color`, but its fill is the heading's clipped gradient.
+   Themes can set --heading-strong-stroke to 0 to opt out. */
+h1 strong, h2 strong, h3 strong, h4 strong, h5 strong, h6 strong,
+h1 b, h2 b, h3 b, h4 b, h5 b, h6 b {
+    font-weight: var(--heading-strong-weight, 800);
+    -webkit-text-stroke:
+        var(--heading-strong-stroke, 0.02em)
+        var(--heading-color, #1a1a1a);
+}
+
+/* Real links in heading text should read as links. The heading self-anchor is
+   excluded — it wraps the whole heading and must keep the gradient fill. */
+h1 a:not(.marco-heading-anchor), h2 a:not(.marco-heading-anchor),
+h3 a:not(.marco-heading-anchor), h4 a:not(.marco-heading-anchor),
+h5 a:not(.marco-heading-anchor), h6 a:not(.marco-heading-anchor) {
+    -webkit-text-fill-color: initial;
+    color: var(--link-color, #0066cc);
 }
 
 h1 .marco-emoji, h2 .marco-emoji, h3 .marco-emoji,

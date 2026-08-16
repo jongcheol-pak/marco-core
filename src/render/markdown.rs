@@ -236,6 +236,32 @@ pub fn warm_render_thread_pool(languages: &[&str]) {
 #[cfg(not(feature = "parallel-render"))]
 pub fn warm_render_thread_pool(_languages: &[&str]) {}
 
+/// Whether a heading's inline content will itself render an `<a>` element.
+///
+/// HTML forbids nested anchors, so a heading whose content already produces one
+/// cannot also be wrapped in the `marco-heading-anchor` self-link. Images are not
+/// a problem here — `<img>` inside `<a>` is valid.
+fn heading_content_emits_anchor(node: &Node, ctx: &RenderContext<'_>) -> bool {
+    node.children
+        .iter()
+        .any(|child| node_emits_anchor(child, ctx))
+}
+
+fn node_emits_anchor(node: &Node, ctx: &RenderContext<'_>) -> bool {
+    let self_emits = match &node.kind {
+        NodeKind::Link { .. } => true,
+        // Only renders as a link when the definition exists; otherwise it falls
+        // back to literal `[^label]` text.
+        NodeKind::FootnoteReference { label } => ctx.footnote_defs.contains_key(label),
+        // Raw HTML is passed through unescaped, so an author-written anchor
+        // would nest just the same.
+        NodeKind::InlineHtml(html) => html.to_ascii_lowercase().contains("<a"),
+        _ => false,
+    };
+
+    self_emits || node.children.iter().any(|c| node_emits_anchor(c, ctx))
+}
+
 // Render individual node
 fn render_node(
     node: &Node,
@@ -274,12 +300,34 @@ fn render_node(
             output.push_str(&escaped_id);
             output.push_str("\">");
 
-            // Wrap heading text in a self-anchor so the whole heading is clickable.
-            output.push_str("<a class=\"marco-heading-anchor\" href=\"#");
-            output.push_str(&escaped_id);
-            output.push_str("\" aria-label=\"Link to this heading\">");
-            output.push_str(&escaped_text);
-            output.push_str("</a>");
+            // Normally the whole heading is wrapped in a self-anchor so clicking
+            // anywhere on it jumps to the heading. HTML forbids nesting one <a>
+            // inside another, so when the heading's own content already renders
+            // an anchor (a link, a resolved footnote reference, or raw inline
+            // HTML containing one) the wrapper is dropped for that heading and
+            // the inner link is what stays clickable.
+            let wrap_in_anchor = !heading_content_emits_anchor(node, ctx);
+
+            if wrap_in_anchor {
+                output.push_str("<a class=\"marco-heading-anchor\" href=\"#");
+                output.push_str(&escaped_id);
+                output.push_str("\" aria-label=\"Link to this heading\">");
+            }
+
+            // Heading content is inline content. Callers that build Heading
+            // nodes by hand may leave `children` empty, so fall back to the
+            // plain `text` field in that case.
+            if node.children.is_empty() {
+                output.push_str(&escaped_text);
+            } else {
+                for child in &node.children {
+                    render_node(child, output, options, ctx)?;
+                }
+            }
+
+            if wrap_in_anchor {
+                output.push_str("</a>");
+            }
 
             output.push_str("</h");
             output.push(level_char);
@@ -1374,6 +1422,60 @@ mod tests {
         assert!(result.contains("Hello World"));
         assert!(result.contains("class=\"marco-heading-anchor\""));
         assert!(result.contains("href=\"#hello-world\""));
+    }
+
+    /// Headings render their inline children (CommonMark §4.2 / §4.3) instead of
+    /// echoing the raw markdown, while keeping the whole-heading self-anchor.
+    #[test]
+    fn regression_heading_renders_inline_children() {
+        let doc = crate::parse("# foo *bar*\n").unwrap();
+        let result = render_html(&doc, &RenderOptions::default()).unwrap();
+
+        assert!(
+            result.contains("foo <em>bar</em>"),
+            "heading should render emphasis, got: {result}"
+        );
+        assert!(
+            result.contains("class=\"marco-heading-anchor\""),
+            "plain-inline headings keep the self-anchor, got: {result}"
+        );
+    }
+
+    /// HTML forbids nested anchors, so a heading whose content renders its own
+    /// `<a>` must not also be wrapped in the `marco-heading-anchor` self-link.
+    #[test]
+    fn regression_heading_with_link_does_not_nest_anchors() {
+        for src in [
+            "## See [the docs](x.md)\n",
+            "## <a href=\"x\">raw</a> html\n",
+        ] {
+            let doc = crate::parse(src).unwrap();
+            let result = render_html(&doc, &RenderOptions::default()).unwrap();
+
+            assert!(
+                !result.contains("marco-heading-anchor"),
+                "{src:?} must drop the self-anchor to avoid nesting, got: {result}"
+            );
+            // The heading still gets its id, so TOC/fragment links keep working.
+            assert!(
+                result.contains("<h2 id=\""),
+                "{src:?} lost its id: {result}"
+            );
+        }
+    }
+
+    /// An image is not an anchor, so those headings keep the wrapper
+    /// (`<img>` inside `<a>` is valid HTML).
+    #[test]
+    fn regression_heading_with_image_keeps_anchor() {
+        let doc = crate::parse("# heading ![img](a.png)\n").unwrap();
+        let result = render_html(&doc, &RenderOptions::default()).unwrap();
+
+        assert!(result.contains("<img src=\"a.png\""), "got: {result}");
+        assert!(
+            result.contains("class=\"marco-heading-anchor\""),
+            "image headings keep the self-anchor, got: {result}"
+        );
     }
 
     #[test]

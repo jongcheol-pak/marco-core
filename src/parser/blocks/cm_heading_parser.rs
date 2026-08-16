@@ -33,12 +33,33 @@ use crate::parser::ast::{Node, NodeKind};
 pub fn parse_atx_heading(level: u8, content: GrammarSpan) -> Node {
     let span = opt_span(content);
     let (text, id) = split_extended_heading_id(content.fragment());
+    let children = heading_inlines(content, &text);
 
     Node {
         kind: NodeKind::Heading { level, text, id },
         span,
-        children: Vec::new(),
+        children,
     }
+}
+
+/// Parse a heading's raw content as inline content (CommonMark §4.2 / §4.3).
+///
+/// `text` is the heading content with any trailing `{#id}` suffix removed, and is
+/// always a prefix of `content` once trailing whitespace is discounted, so it can
+/// be sliced off `content` by byte length to keep nom_locate offsets intact.
+fn heading_inlines(content: GrammarSpan, text: &str) -> Vec<Node> {
+    use nom::Input;
+
+    let inline_span = if text.len() < content.fragment().len() {
+        content.take(text.len())
+    } else {
+        content
+    };
+
+    crate::parser::inlines::parse_inlines_from_span(inline_span).unwrap_or_else(|e| {
+        log::warn!("Heading inline parsing failed, falling back to plain text: {e}");
+        Vec::new()
+    })
 }
 
 /// Parse a Setext heading (underline style) into an AST node.
@@ -74,11 +95,12 @@ pub fn parse_setext_heading(
     //   which is what we want for highlighting.
     let span = opt_span_range(full_start, full_end);
     let (text, id) = split_extended_heading_id(content.fragment());
+    let children = heading_inlines(content, &text);
 
     Node {
         kind: NodeKind::Heading { level, text, id },
         span,
-        children: Vec::new(),
+        children,
     }
 }
 
@@ -214,12 +236,76 @@ mod tests {
         assert_eq!(span.start.column, 1);
     }
 
+    /// Headings carry their content as inline children (CommonMark §4.2 / §4.3).
+    /// This previously asserted `children.is_empty()`, which encoded the bug that
+    /// heading content was never parsed as inlines.
     #[test]
-    fn smoke_test_heading_no_children() {
+    fn smoke_test_heading_parses_inline_children() {
         let content = GrammarSpan::new("Test");
         let node = parse_atx_heading(2, content);
 
-        assert!(node.children.is_empty());
+        assert_eq!(node.children.len(), 1);
+        assert!(matches!(node.children[0].kind, NodeKind::Text(ref t) if t == "Test"));
+    }
+
+    #[test]
+    fn regression_atx_heading_parses_emphasis() {
+        let node = parse_atx_heading(1, GrammarSpan::new("foo *bar*"));
+
+        // `text` stays the raw content: the heading id is still derived from it.
+        match &node.kind {
+            NodeKind::Heading { text, .. } => assert_eq!(text, "foo *bar*"),
+            _ => panic!("expected Heading"),
+        }
+        assert!(
+            node.children
+                .iter()
+                .any(|c| matches!(c.kind, NodeKind::Emphasis)),
+            "expected an Emphasis child, got {:?}",
+            node.children.iter().map(|c| &c.kind).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn regression_setext_heading_parses_emphasis() {
+        let start = GrammarSpan::new("Foo *bar*\n===\n");
+        let (rest, (level, content)) = grammar::setext_heading(start).unwrap();
+        let node = parse_setext_heading(level, content, start, rest);
+
+        assert_eq!(level, 1);
+        assert!(
+            node.children
+                .iter()
+                .any(|c| matches!(c.kind, NodeKind::Emphasis)),
+            "expected an Emphasis child in a setext heading"
+        );
+    }
+
+    /// The `{#id}` suffix must be excluded from the inline content, not parsed
+    /// into it.
+    #[test]
+    fn regression_extended_id_suffix_excluded_from_inlines() {
+        let node = parse_atx_heading(3, GrammarSpan::new("Title *x* {#custom-id}"));
+
+        match &node.kind {
+            NodeKind::Heading { id, .. } => assert_eq!(id.as_deref(), Some("custom-id")),
+            _ => panic!("expected Heading"),
+        }
+        let rendered: String = collect_text(&node.children);
+        assert!(
+            !rendered.contains("custom-id"),
+            "id suffix leaked into inline content: {rendered:?}"
+        );
+    }
+
+    fn collect_text(nodes: &[Node]) -> String {
+        nodes
+            .iter()
+            .map(|n| match &n.kind {
+                NodeKind::Text(t) => t.clone(),
+                _ => collect_text(&n.children),
+            })
+            .collect()
     }
 
     #[test]

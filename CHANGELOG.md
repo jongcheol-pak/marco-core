@@ -5,6 +5,78 @@ This project follows **Semantic Versioning** and uses the **Keep a Changelog** f
 
 Version scheme note: `marco-core` and `marco-shared` follow independent semver from the application binaries (marco/polo). The library tracks API stability for crates.io consumers; breaking API changes increment the major version.
 
+## [1.3.1] - 2026-08-16
+
+### Fixed
+
+#### Blockquotes and lists corrupted block structure on non-ASCII input
+
+Both parsers computed line lengths as **byte** offsets but consumed them with
+nom's `bytes::complete::take()` combinator, which counts **characters** when the
+input is a `&str`. For ASCII the two units coincide; for anything else the
+parser over-consumed by one character per extra UTF-8 byte, and the damage
+compounded across the document.
+
+In blockquotes this meant a quote swallowed whatever followed it — a thematic
+break after `> Nóte.` was partially eaten, and with nothing to absorb the drift
+the blockquote failed to match at all and its `>` marker leaked into the output
+as literal text. In lists a multi-byte continuation line consumed past its own
+newline, turning sibling list items into nested ones.
+
+Every language outside ASCII was affected, including Czech, Japanese, German,
+French, Spanish, Greek, Cyrillic and emoji. Both parsers now slice by byte
+length via `Input::take`/`take_from`. The CommonMark spec corpus never caught
+this because every example in it is ASCII, so regression tests covering
+non-ASCII input were added alongside the fix.
+
+Reported, diagnosed and patched by @vobornik (#4); the list occurrence was found
+while auditing the other `take()` call sites they flagged.
+
+#### Headings did not parse their content as inline elements
+
+ATX and setext headings carried their content as a plain string and never ran
+the inline grammar over it, so emphasis, strong, code spans, strikethrough,
+highlights, links and images all rendered as literal markup — `# foo *bar*`
+produced `<h1>foo *bar*</h1>`. Heading content is now parsed as inline content
+per CommonMark §4.2 / §4.3.
+
+Auto-generated heading ids are unchanged: they are still derived from the raw
+heading text, so existing `#fragment` links keep working.
+
+One rendering change is visible. Marco wraps heading text in a
+`marco-heading-anchor` self-link so the whole heading is clickable, and HTML
+forbids nesting one `<a>` inside another. A heading whose content renders its
+own anchor — a link, a resolved footnote reference, or raw inline HTML
+containing one — therefore omits the wrapper, leaving the inner link clickable
+instead. Headings containing an image keep the wrapper, since `<img>` inside
+`<a>` is valid.
+
+Reported by @vobornik (#5).
+
+### Changed
+
+#### Inline elements inside headings are now styled correctly
+
+Headings paint their text with a gradient clipped to the glyph shape, which
+makes the text transparent and is inherited by every descendant. The rules that
+compensated for this were written when headings could not contain inline
+elements, and became wrong as soon as they could:
+
+- `code` and `mark` were reset with the `background` shorthand, erasing the
+  code box and the highlight that make them recognisable. They now keep their
+  own backgrounds, and `mark` keeps `--mark-color` rather than being forced to
+  `--text-color`, which is chosen to contrast with `--mark-bg`.
+- Links in heading text inherited the transparent fill and were painted with
+  the heading gradient instead of `--link-color`, so they did not read as
+  links.
+- `strong` was indistinguishable from surrounding heading text, because
+  headings are already `font-weight: 600` and the sans-serif families that
+  Marco's themes resolve to on most Linux systems ship only Regular and Bold —
+  so 600 and 700 render as the same face. Heading `strong` now also thickens
+  the glyph outline, which is independent of the weights a font provides.
+  Themes can set `--heading-strong-stroke: 0` to opt out, or tune
+  `--heading-strong-weight`.
+
 ## [1.3.0] - 2026-07-17
 
 ### Fixed

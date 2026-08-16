@@ -1009,10 +1009,8 @@ fn collect_diagnostics(node: &Node, diagnostics: &mut Vec<Diagnostic>) {
                     );
                 }
             }
-            NodeKind::List { .. } => {
-                if node.children.is_empty() {
-                    diag_catalog(diagnostics, DiagnosticCode::EmptyList, *span);
-                }
+            NodeKind::List { .. } if node.children.is_empty() => {
+                diag_catalog(diagnostics, DiagnosticCode::EmptyList, *span);
             }
             NodeKind::ListItem => {
                 if node.children.is_empty() {
@@ -1080,29 +1078,21 @@ fn collect_diagnostics(node: &Node, diagnostics: &mut Vec<Diagnostic>) {
                     diag_catalog(diagnostics, DiagnosticCode::UnknownAdmonitionKind, *span);
                 }
             }
-            NodeKind::DefinitionList => {
-                if node.children.is_empty() {
-                    diag_catalog(diagnostics, DiagnosticCode::EmptyDefinitionList, *span);
-                }
+            NodeKind::DefinitionList if node.children.is_empty() => {
+                diag_catalog(diagnostics, DiagnosticCode::EmptyDefinitionList, *span);
             }
-            NodeKind::DefinitionTerm => {
-                if !node_has_meaningful_content(node) {
-                    diag_catalog(diagnostics, DiagnosticCode::EmptyDefinitionTerm, *span);
-                }
+            NodeKind::DefinitionTerm if !node_has_meaningful_content(node) => {
+                diag_catalog(diagnostics, DiagnosticCode::EmptyDefinitionTerm, *span);
             }
-            NodeKind::DefinitionDescription => {
-                if !node_has_meaningful_content(node) {
-                    diag_catalog(
-                        diagnostics,
-                        DiagnosticCode::EmptyDefinitionDescription,
-                        *span,
-                    );
-                }
+            NodeKind::DefinitionDescription if !node_has_meaningful_content(node) => {
+                diag_catalog(
+                    diagnostics,
+                    DiagnosticCode::EmptyDefinitionDescription,
+                    *span,
+                );
             }
-            NodeKind::TableCell { .. } => {
-                if !node_has_meaningful_content(node) {
-                    diag_catalog(diagnostics, DiagnosticCode::EmptyTableCell, *span);
-                }
+            NodeKind::TableCell { .. } if !node_has_meaningful_content(node) => {
+                diag_catalog(diagnostics, DiagnosticCode::EmptyTableCell, *span);
             }
             NodeKind::TabGroup => {
                 if node.children.is_empty() {
@@ -1148,10 +1138,8 @@ fn collect_diagnostics(node: &Node, diagnostics: &mut Vec<Diagnostic>) {
                     diag_catalog(diagnostics, DiagnosticCode::InvalidSliderTimer, *span);
                 }
             }
-            NodeKind::Slide { .. } => {
-                if !node_has_meaningful_content(node) {
-                    diag_catalog(diagnostics, DiagnosticCode::EmptySlide, *span);
-                }
+            NodeKind::Slide { .. } if !node_has_meaningful_content(node) => {
+                diag_catalog(diagnostics, DiagnosticCode::EmptySlide, *span);
             }
             NodeKind::Admonition { title, .. } => {
                 if node.children.is_empty() {
@@ -1164,15 +1152,13 @@ fn collect_diagnostics(node: &Node, diagnostics: &mut Vec<Diagnostic>) {
                     }
                 }
             }
-            NodeKind::InlineMath { content } | NodeKind::DisplayMath { content } => {
-                if content.trim().is_empty() {
-                    diag_catalog(diagnostics, DiagnosticCode::EmptyMathExpression, *span);
-                }
+            NodeKind::InlineMath { content } | NodeKind::DisplayMath { content }
+                if content.trim().is_empty() =>
+            {
+                diag_catalog(diagnostics, DiagnosticCode::EmptyMathExpression, *span);
             }
-            NodeKind::MermaidDiagram { content } => {
-                if content.trim().is_empty() {
-                    diag_catalog(diagnostics, DiagnosticCode::EmptyMermaidDiagram, *span);
-                }
+            NodeKind::MermaidDiagram { content } if content.trim().is_empty() => {
+                diag_catalog(diagnostics, DiagnosticCode::EmptyMermaidDiagram, *span);
             }
             NodeKind::PlatformMention {
                 username,
@@ -1203,10 +1189,8 @@ fn collect_diagnostics(node: &Node, diagnostics: &mut Vec<Diagnostic>) {
                     );
                 }
             }
-            NodeKind::Text(text) => {
-                if text_has_unknown_emoji_shortcode(text) {
-                    diag_catalog(diagnostics, DiagnosticCode::UnknownEmojiShortcode, *span);
-                }
+            NodeKind::Text(text) if text_has_unknown_emoji_shortcode(text) => {
+                diag_catalog(diagnostics, DiagnosticCode::UnknownEmojiShortcode, *span);
             }
             _ => {}
         }

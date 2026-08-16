@@ -181,37 +181,37 @@
   },
   {
     "markdown": "# **Bold** heading",
-    "html": "<h1 id=\"bold-heading\"><a class=\"marco-heading-anchor\" href=\"#bold-heading\" aria-label=\"Link to this heading\">**Bold** heading</a></h1>\n",
+    "html": "<h1 id=\"bold-heading\"><a class=\"marco-heading-anchor\" href=\"#bold-heading\" aria-label=\"Link to this heading\"><strong>Bold</strong> heading</a></h1>\n",
     "example": 4031,
     "section": "Inlines in heading"
   },
   {
     "markdown": "## *Italic* heading",
-    "html": "<h2 id=\"italic-heading\"><a class=\"marco-heading-anchor\" href=\"#italic-heading\" aria-label=\"Link to this heading\">*Italic* heading</a></h2>\n",
+    "html": "<h2 id=\"italic-heading\"><a class=\"marco-heading-anchor\" href=\"#italic-heading\" aria-label=\"Link to this heading\"><em>Italic</em> heading</a></h2>\n",
     "example": 4032,
     "section": "Inlines in heading"
   },
   {
     "markdown": "### `code` heading",
-    "html": "<h3 id=\"code-heading\"><a class=\"marco-heading-anchor\" href=\"#code-heading\" aria-label=\"Link to this heading\">`code` heading</a></h3>\n",
+    "html": "<h3 id=\"code-heading\"><a class=\"marco-heading-anchor\" href=\"#code-heading\" aria-label=\"Link to this heading\"><code>code</code> heading</a></h3>\n",
     "example": 4033,
     "section": "Inlines in heading"
   },
   {
     "markdown": "#### ~~strike~~ heading",
-    "html": "<h4 id=\"strike-heading\"><a class=\"marco-heading-anchor\" href=\"#strike-heading\" aria-label=\"Link to this heading\">~~strike~~ heading</a></h4>\n",
+    "html": "<h4 id=\"strike-heading\"><a class=\"marco-heading-anchor\" href=\"#strike-heading\" aria-label=\"Link to this heading\"><del>strike</del> heading</a></h4>\n",
     "example": 4034,
     "section": "Inlines in heading"
   },
   {
     "markdown": "##### ==mark== heading",
-    "html": "<h5 id=\"mark-heading\"><a class=\"marco-heading-anchor\" href=\"#mark-heading\" aria-label=\"Link to this heading\">==mark== heading</a></h5>\n",
+    "html": "<h5 id=\"mark-heading\"><a class=\"marco-heading-anchor\" href=\"#mark-heading\" aria-label=\"Link to this heading\"><mark>mark</mark> heading</a></h5>\n",
     "example": 4035,
     "section": "Inlines in heading"
   },
   {
     "markdown": "###### [link](https://x.com) heading",
-    "html": "<h6 id=\"link-https-x-com-heading\"><a class=\"marco-heading-anchor\" href=\"#link-https-x-com-heading\" aria-label=\"Link to this heading\">[link](https://x.com) heading</a></h6>\n",
+    "html": "<h6 id=\"link-https-x-com-heading\"><a href=\"https://x.com\">link</a> heading</h6>\n",
     "example": 4036,
     "section": "Inlines in heading"
   },

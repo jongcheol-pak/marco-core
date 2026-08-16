@@ -259,11 +259,11 @@ a[href^='mailto:']:not(.marco-heading-anchor):active {
         r#"<!DOCTYPE html>
 <html class="{}">
     <head>
-        <meta charset=\"utf-8\">
-        <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
-        <link rel=\"stylesheet\" href=\"https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css\" integrity=\"sha384-n8MVd4RsNIU0tAv4ct0nTaAbDJwPJzDEaqSD1odI+WdtXRGWt2kTvGFasHpSy3SV\" crossorigin=\"anonymous\">
-        <style id=\"mc-preview-style\">{}{}</style>
-        <style id=\"mc-preview-internal-style\">{}</style>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" integrity="sha384-n8MVd4RsNIU0tAv4ct0nTaAbDJwPJzDEaqSD1odI+WdtXRGWt2kTvGFasHpSy3SV" crossorigin="anonymous">
+        <style id="mc-preview-style">{}{}</style>
+        <style id="mc-preview-internal-style">{}</style>
         <script>
             // Preview management object to avoid global namespace pollution
             window.MarcoCorePreview = (function() {{
@@ -1611,8 +1611,12 @@ mod tests {
             "dark",
             Some("#000000"),
         );
-        assert!(doc.contains("id=\\\"mc-preview-style\\\""));
-        assert!(doc.contains("id=\\\"mc-preview-internal-style\\\""));
+        // The document is built from a raw string literal, where a backslash is
+        // literal rather than an escape. These attributes must come out as plain
+        // `id="…"`; asserting the backslashed form here previously pinned the
+        // malformed markup in place.
+        assert!(doc.contains("id=\"mc-preview-style\""));
+        assert!(doc.contains("id=\"mc-preview-internal-style\""));
         assert!(doc.contains("window.MarcoCorePreview"));
         assert!(doc.contains("installTableResizer"));
         assert!(doc.contains("installSliders"));

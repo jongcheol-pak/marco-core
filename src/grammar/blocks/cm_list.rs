@@ -290,7 +290,7 @@ pub fn list_item(
                 };
 
                 if skip_len > 0 {
-                    let (new_remaining, _) = take(skip_len)(remaining)?;
+                    let new_remaining = remaining.take_from(skip_len);
                     content_end_offset = new_remaining.location_offset();
                     remaining = new_remaining;
                 }
@@ -417,7 +417,7 @@ pub fn list_item(
             }
             last_was_blank = true;
 
-            let (new_remaining, _) = take(skip_len)(remaining)?;
+            let new_remaining = remaining.take_from(skip_len);
             content_end_offset = new_remaining.location_offset();
             remaining = new_remaining;
             continue;
@@ -471,7 +471,7 @@ pub fn list_item(
                 current_line_end
             };
 
-            let (new_remaining, _) = take(skip_len)(remaining)?;
+            let new_remaining = remaining.take_from(skip_len);
             content_end_offset = new_remaining.location_offset();
             remaining = new_remaining;
             continue;
@@ -504,7 +504,7 @@ pub fn list_item(
                 current_line_end
             };
 
-            let (new_remaining, _) = take(skip_len)(remaining)?;
+            let new_remaining = remaining.take_from(skip_len);
             content_end_offset = new_remaining.location_offset();
             remaining = new_remaining;
             continue;
@@ -586,7 +586,7 @@ pub fn list(input: Span) -> IResult<Span, Vec<ListItemData>> {
                     first_line_end
                 };
 
-                let (new_remaining, _) = take(skip_len)(temp_remaining)?;
+                let new_remaining = temp_remaining.take_from(skip_len);
                 temp_remaining = new_remaining;
             } else {
                 remaining = temp_remaining;
@@ -731,5 +731,54 @@ mod tests {
         let input = Span::new("-Item");
         let result = detect_list_marker(input);
         assert!(result.is_err());
+    }
+
+    /// Regression: line lengths are byte offsets and must not be fed to nom's
+    /// `take()` combinator, which counts *characters* on `&str`. Multi-byte
+    /// content in a continuation line used to over-consume by one char per extra
+    /// UTF-8 byte, absorbing the following sibling item into the first one.
+    #[test]
+    fn regression_list_non_ascii_continuation_keeps_siblings() {
+        // Each pair parses to the same structure; only the alphabet differs.
+        for (input, want_items) in [
+            ("- Item one\n  continued line\n\n- Item two\n", 2),
+            ("- Itém óne\n  cóntinued líne\n\n- Item two\n", 2),
+            ("- 日本語\n  テキストの行\n\n- Item two\n", 2),
+            ("- Grüße\n  zweite Zeile\n\n- Item two\n", 2),
+        ] {
+            let (_, items) =
+                list(Span::new(input)).unwrap_or_else(|e| panic!("{input:?} failed: {e:?}"));
+            assert_eq!(
+                items.len(),
+                want_items,
+                "{input:?}: expected {want_items} items, got {}",
+                items.len()
+            );
+            assert!(
+                items[1].1.fragment().contains("Item two"),
+                "{input:?}: second item was {:?}",
+                items[1].1.fragment()
+            );
+        }
+    }
+
+    /// Regression: multi-byte content on an indented continuation line must not
+    /// shift the item's content span past the line it belongs to.
+    #[test]
+    fn regression_list_non_ascii_multiline_item_content() {
+        for (input, tail) in [
+            ("- aaa\n  bbb\n  ccc\n", "ccc"),
+            ("- ááá\n  bbb\n  ccc\n", "ccc"),
+            ("- ááá\n  bbb\n  ccc", "ccc"),
+        ] {
+            let (_, items) =
+                list(Span::new(input)).unwrap_or_else(|e| panic!("{input:?} failed: {e:?}"));
+            assert_eq!(items.len(), 1, "{input:?}: expected a single item");
+            assert!(
+                items[0].1.fragment().contains(tail),
+                "{input:?}: item content {:?} missing {tail:?}",
+                items[0].1.fragment()
+            );
+        }
     }
 }

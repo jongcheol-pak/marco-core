@@ -11,7 +11,7 @@
 
 use crate::grammar::blocks::cm_thematic_break::thematic_break;
 use crate::grammar::shared::Span;
-use nom::{bytes::complete::take, IResult, Input, Parser};
+use nom::{IResult, Input};
 
 /// Parse a blockquote (lines starting with >)
 ///
@@ -121,9 +121,8 @@ pub fn blockquote(input: Span) -> IResult<Span, Span> {
                     leading_spaces + line_end
                 };
 
-                if let Ok((new_remaining, _)) =
-                    take::<_, _, nom::error::Error<Span>>(skip_len).parse(remaining)
-                {
+                if skip_len <= remaining.fragment().len() {
+                    let new_remaining = remaining.take_from(skip_len);
                     last_content_offset = new_remaining.location_offset();
                     remaining = new_remaining;
                     last_line_opened_fence = false; // Reset flag after consuming lazy continuation
@@ -164,10 +163,10 @@ pub fn blockquote(input: Span) -> IResult<Span, Span> {
             leading_spaces + 1 + (after_marker.len() - after_optional_space.len()) + line_end
         };
 
-        // Use nom's take to consume the line
-        if let Ok((new_remaining, _)) =
-            take::<_, _, nom::error::Error<Span>>(skip_len).parse(remaining)
-        {
+        // `skip_len` is a byte length, so slice by bytes via `Input::take_from`
+        // rather than nom's `take()` combinator, which counts characters on `&str`.
+        if skip_len <= remaining.fragment().len() {
+            let new_remaining = remaining.take_from(skip_len);
             last_content_offset = new_remaining.location_offset();
             remaining = new_remaining;
         } else {
@@ -187,8 +186,10 @@ pub fn blockquote(input: Span) -> IResult<Span, Span> {
         )));
     }
 
-    // Extract content using nom's take to preserve position information
-    let (_, content_span) = take::<_, _, nom::error::Error<Span>>(content_len).parse(start)?;
+    // `content_len` is a byte length (from `location_offset()`), so slice by
+    // bytes via `Input::take` rather than nom's `take()` combinator, which
+    // counts characters on `&str`.
+    let content_span = start.take(content_len);
 
     log::debug!("Blockquote parsed: {} bytes", content_span.fragment().len());
 
@@ -270,5 +271,54 @@ mod tests {
         let result = blockquote(input);
         // Should fail because 4+ spaces before > is not valid
         assert!(result.is_err());
+    }
+
+    /// Regression: byte offsets must not be fed to nom's `take()` combinator,
+    /// which counts *characters* on `&str`. Multi-byte content used to make the
+    /// blockquote over-consume by one char per extra UTF-8 byte, swallowing the
+    /// following block (or failing to match at all).
+    #[test]
+    fn regression_blockquote_non_ascii_does_not_overconsume() {
+        for (input, quoted, rest) in [
+            ("> Note.\n\npara2", "Note.", "para2"),
+            ("> Nóte.\n\npara2", "Nóte.", "para2"),
+            ("> Nóóte.\n\npara2", "Nóóte.", "para2"),
+            ("> Nóóóte.\n\npara2", "Nóóóte.", "para2"),
+            ("> 日本語テキスト\n\npara2", "日本語テキスト", "para2"),
+            ("> Grüße 😀\n\npara2", "Grüße 😀", "para2"),
+        ] {
+            let (remaining, content) =
+                blockquote(Span::new(input)).unwrap_or_else(|e| panic!("{input:?} failed: {e:?}"));
+            assert!(
+                content.fragment().contains(quoted),
+                "{input:?}: content {:?} missing {quoted:?}",
+                content.fragment()
+            );
+            assert!(
+                remaining.fragment().trim_start().starts_with(rest),
+                "{input:?}: remaining {:?} should start with {rest:?}",
+                remaining.fragment()
+            );
+        }
+    }
+
+    /// Regression: a thematic break after a non-ASCII blockquote must survive
+    /// intact rather than being partially eaten by the quote.
+    #[test]
+    fn regression_blockquote_non_ascii_leaves_thematic_break_intact() {
+        for input in [
+            "> Note.\n\n---\n\npara",
+            "> Nóte.\n\n---\n\npara",
+            "> Nóóte.\n\n---\n\npara",
+            "> Nóóóte.\n\n---\n\npara",
+        ] {
+            let (remaining, _) =
+                blockquote(Span::new(input)).unwrap_or_else(|e| panic!("{input:?} failed: {e:?}"));
+            assert!(
+                remaining.fragment().trim_start().starts_with("---"),
+                "{input:?}: remaining {:?} should still hold the full ---",
+                remaining.fragment()
+            );
+        }
     }
 }
