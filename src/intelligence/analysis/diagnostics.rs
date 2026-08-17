@@ -92,6 +92,14 @@ pub enum DiagnosticCode {
     UnresolvedLinkReference,
     /// Link reference label is empty.
     EmptyLinkReferenceLabel,
+    /// Link points at a local file that is not there.
+    ///
+    /// Never raised by this crate. Whether a path exists is a question about
+    /// the filesystem, which the analysis cannot answer — it is never told
+    /// where the document lives. The code and its catalog metadata live here
+    /// so an application that *can* answer it files the result alongside
+    /// every other diagnostic instead of inventing a numbering of its own.
+    MissingLinkTarget,
 
     // Code blocks (MD3xx)
     /// Code block has no content.
@@ -106,6 +114,11 @@ pub enum DiagnosticCode {
     ImageMissingAltText,
     /// Image uses a blocked protocol.
     UnsafeImageProtocol,
+    /// Image points at a local file that is not there.
+    ///
+    /// Raised by the application rather than this crate, for the reason given
+    /// on [`DiagnosticCode::MissingLinkTarget`].
+    MissingImageTarget,
 
     // Inline HTML (MD-5xx)
     /// Inline HTML contains script content.
@@ -1291,11 +1304,13 @@ mod tests {
             DiagnosticCode::InsecureLinkProtocol,
             DiagnosticCode::UnresolvedLinkReference,
             DiagnosticCode::EmptyLinkReferenceLabel,
+            DiagnosticCode::MissingLinkTarget,
             DiagnosticCode::EmptyCodeBlock,
             DiagnosticCode::MissingCodeBlockLanguage,
             DiagnosticCode::EmptyImageUrl,
             DiagnosticCode::ImageMissingAltText,
             DiagnosticCode::UnsafeImageProtocol,
+            DiagnosticCode::MissingImageTarget,
             DiagnosticCode::InlineHtmlContainsScript,
             DiagnosticCode::InlineHtmlJavascriptUrl,
             DiagnosticCode::InlineHtmlUnsafeEventHandler,
@@ -1341,6 +1356,36 @@ mod tests {
                 code
             );
         }
+    }
+
+    #[test]
+    fn smoke_test_missing_target_codes_carry_application_facing_metadata() {
+        // Raised by the application rather than by analysis here, so the
+        // catalog is the only thing that gives them their text.
+        for (code, id) in [
+            (DiagnosticCode::MissingLinkTarget, "MD206"),
+            (DiagnosticCode::MissingImageTarget, "MD404"),
+        ] {
+            assert_eq!(code.as_str(), id);
+            assert_eq!(code.default_severity(), DiagnosticSeverity::Warning);
+            assert_eq!(
+                code.format_message(&[("path", "./gone.md".to_string())]),
+                "No file at `./gone.md`."
+            );
+        }
+    }
+
+    #[test]
+    fn smoke_test_analysis_never_raises_missing_target_itself() {
+        // The path below does not exist, and this crate must not care: it is
+        // never told which directory the document lives in.
+        let document = crate::parser::parse("[gone](./definitely-not-here.md)\n")
+            .expect("document should parse");
+        let diagnostics = compute_diagnostics(&document);
+        assert!(!diagnostics.iter().any(|d| matches!(
+            d.code,
+            DiagnosticCode::MissingLinkTarget | DiagnosticCode::MissingImageTarget
+        )));
     }
 
     #[test]

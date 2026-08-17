@@ -18,7 +18,7 @@ You may be looking for:
 
 ```toml
 [dependencies]
-marco-core = "1.3.1"
+marco-core = "1.3.2"
 ```
 
 ```rust

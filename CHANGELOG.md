@@ -5,6 +5,20 @@ This project follows **Semantic Versioning** and uses the **Keep a Changelog** f
 
 Version scheme note: `marco-core` and `marco-shared` follow independent semver from the application binaries (marco/polo). The library tracks API stability for crates.io consumers; breaking API changes increment the major version.
 
+## [1.3.2] - 2026-08-17
+
+### Added
+
+#### Diagnostic codes for missing link and image targets
+
+`MD206` (`MissingLinkTarget`) and `MD404` (`MissingImageTarget`) report a link
+or image whose local path has no file at it. Neither is ever raised by this
+crate: whether a path exists is a filesystem question, and the analysis is never
+told where the document lives. The codes and their catalog metadata — title,
+message template, severity, fix suggestion — live here so an application that
+*can* answer it files the result alongside every other diagnostic instead of
+inventing a numbering of its own.
+
 ## [1.3.1] - 2026-08-16
 
 ### Fixed
