@@ -9,6 +9,7 @@
 Cargo.lock.bak
 
 # IDE / editor
+.claude/
 .dev/
 marco-core.code-workspace
 # OS

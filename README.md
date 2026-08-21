@@ -18,7 +18,7 @@ You may be looking for:
 
 ```toml
 [dependencies]
-marco-core = "1.3.2"
+marco-core = "1.3.3"
 ```
 
 ```rust
@@ -95,7 +95,7 @@ let completions = provider.completions(""); // context-aware suggestions
 - CommonMark spec conformance: 357/652 strict, 98.8% structural compliance
 - UTF-8 sanitization (`&[u8]` → `String`) strips null bytes and invalid sequences before parsing
 - GFM task list checkboxes and admonitions render as SVG icons (no CSS-only dependency)
-- 625 tests — 612 integration, 13 doc/unit — all green (plus 9 more under `--features parallel-parse`)
+- 674 tests — 535 unit, 108 integration, 31 doc — all green on the default feature set
 
 ## When to use marco-core
 

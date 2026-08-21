@@ -119,6 +119,15 @@ pub enum DiagnosticCode {
     /// Raised by the application rather than this crate, for the reason given
     /// on [`DiagnosticCode::MissingLinkTarget`].
     MissingImageTarget,
+    /// Image carries its bytes inline as a base64 `data:` URI.
+    ///
+    /// Never raised by this crate. An embedded image is not a defect, so the
+    /// analysis stays silent about it and no consumer is handed a finding it
+    /// did not ask for. The code and its catalog metadata live here so an
+    /// application that wants to say something about an embedded image — in a
+    /// hover popover, say — draws on the same text and numbering as every
+    /// other diagnostic instead of hand-writing its own.
+    EmbeddedBase64Image,
 
     // Inline HTML (MD-5xx)
     /// Inline HTML contains script content.
@@ -455,6 +464,33 @@ fn has_disallowed_scheme(url_lower: &str, disallowed_schemes: &[String]) -> bool
         .unwrap_or_default();
 
     !scheme.is_empty() && disallowed_schemes.iter().any(|item| item == scheme)
+}
+
+/// Whether an image source is a base64 data URI carrying an inert image.
+///
+/// `data:` sits on the unsafe-protocol list because most data URIs are a way
+/// to carry active content, and that stays true: `data:text/html;base64,…`
+/// runs, and so does `data:image/svg+xml`, which is an image mediatype but a
+/// script-capable one in the WebViews this crate's HTML is rendered in. A
+/// base64 raster image cannot execute, so reporting it as an unsafe protocol
+/// is a false positive.
+///
+/// Only the mediatypes the catalog lists are exempt, and only in their
+/// `;base64,` form. Anything else — a bare `data:image/png,` payload, an extra
+/// parameter before the `;base64`, a mediatype not on the list, a URI with no
+/// payload separator at all — is left to the caller's unsafe-protocol check.
+fn is_inert_base64_image_data_uri(url_lower: &str, inert_mediatypes: &[String]) -> bool {
+    let Some(rest) = url_lower.strip_prefix("data:") else {
+        return false;
+    };
+    let Some((metadata, _payload)) = rest.split_once(',') else {
+        return false;
+    };
+    let Some(mediatype) = metadata.strip_suffix(";base64") else {
+        return false;
+    };
+
+    inert_mediatypes.iter().any(|item| item == mediatype)
 }
 
 fn starts_with_any_prefix(url_lower: &str, prefixes: &[String]) -> bool {
@@ -988,7 +1024,16 @@ fn collect_diagnostics(node: &Node, diagnostics: &mut Vec<Diagnostic>) {
 
                 let lower_url = url.to_lowercase();
                 let settings = crate::intelligence::catalog::diagnostics_catalog_settings();
-                if has_disallowed_scheme(&lower_url, &settings.unsafe_protocols) {
+                // An embedded base64 raster image is inert, so it is exempt —
+                // every other `data:` URI, including the script-capable
+                // `image/svg+xml`, still reports. Images only: the same check
+                // on a link above is deliberately left blanket.
+                if has_disallowed_scheme(&lower_url, &settings.unsafe_protocols)
+                    && !is_inert_base64_image_data_uri(
+                        &lower_url,
+                        &settings.inert_image_data_mediatypes,
+                    )
+                {
                     let protocol = url
                         .split_once(':')
                         .map(|(prefix, _)| prefix)
@@ -1311,6 +1356,7 @@ mod tests {
             DiagnosticCode::ImageMissingAltText,
             DiagnosticCode::UnsafeImageProtocol,
             DiagnosticCode::MissingImageTarget,
+            DiagnosticCode::EmbeddedBase64Image,
             DiagnosticCode::InlineHtmlContainsScript,
             DiagnosticCode::InlineHtmlJavascriptUrl,
             DiagnosticCode::InlineHtmlUnsafeEventHandler,
@@ -1386,6 +1432,90 @@ mod tests {
             d.code,
             DiagnosticCode::MissingLinkTarget | DiagnosticCode::MissingImageTarget
         )));
+    }
+
+    #[test]
+    fn smoke_test_embedded_base64_image_carries_application_facing_metadata() {
+        // Catalog text only, for an application that wants to describe an
+        // embedded image. Nothing here raises it.
+        let code = DiagnosticCode::EmbeddedBase64Image;
+        assert_eq!(code.as_str(), "MD405");
+        assert_eq!(code.default_severity(), DiagnosticSeverity::Hint);
+        assert_eq!(
+            code.format_message(&[("mediatype", "image/png".to_string())]),
+            "Image is embedded inline as a `image/png` base64 data URI."
+        );
+        assert!(code.fix_suggestion().contains("No fix needed"));
+    }
+
+    #[test]
+    fn smoke_test_analysis_never_raises_embedded_base64_image_itself() {
+        // An embedded image is not a defect, so analysis stays silent about
+        // it and no consumer is handed a finding it did not ask for.
+        let document = crate::parser::parse("![logo](data:image/png;base64,iVBORw0KGgo=)\n")
+            .expect("document should parse");
+        let diagnostics = compute_diagnostics(&document);
+        assert!(!diagnostics
+            .iter()
+            .any(|d| matches!(d.code, DiagnosticCode::EmbeddedBase64Image)));
+    }
+
+    fn raises(markdown: &str, code: DiagnosticCode) -> bool {
+        let document = crate::parser::parse(markdown).expect("document should parse");
+        compute_diagnostics(&document)
+            .iter()
+            .any(|d| d.code == code)
+    }
+
+    #[test]
+    fn smoke_test_inert_base64_raster_images_are_not_unsafe_protocols() {
+        for markdown in [
+            "![logo](data:image/png;base64,iVBORw0KGgo=)\n",
+            "![logo](data:image/jpeg;base64,/9j/4AAQAA==)\n",
+            "![logo](data:image/gif;base64,R0lGODlhAQ==)\n",
+            "![logo](data:image/webp;base64,UklGRgAA)\n",
+            // URLs are lowered before the check, so the mediatype matches
+            // whatever case the author wrote it in.
+            "![logo](DATA:IMAGE/PNG;BASE64,iVBORw0KGgo=)\n",
+        ] {
+            assert!(
+                !raises(markdown, DiagnosticCode::UnsafeImageProtocol),
+                "expected no unsafe-protocol diagnostic for {markdown:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn smoke_test_active_data_uri_images_still_report_unsafe_protocol() {
+        for markdown in [
+            // An image mediatype, but script-capable in the WebViews this
+            // crate's HTML is rendered in — the reason the exemption is a
+            // list and not a `data:image/` prefix test.
+            "![x](data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=)\n",
+            "![x](data:image/svg+xml,PHN2Zz48L3N2Zz4=)\n",
+            // Not base64, so not one of the shapes exempted.
+            "![x](data:image/png,rawbytes)\n",
+            // Not an image at all.
+            "![x](data:text/html;base64,PGgxPmhpPC9oMT4=)\n",
+            "![x](data:application/javascript;base64,YWxlcnQoMSk=)\n",
+            // Unrelated to the narrowing, and unchanged by it.
+            "![x](javascript:alert)\n",
+        ] {
+            assert!(
+                raises(markdown, DiagnosticCode::UnsafeImageProtocol),
+                "expected an unsafe-protocol diagnostic for {markdown:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn smoke_test_data_uri_links_are_untouched_by_the_image_exemption() {
+        // The exemption is about images. The identical check on a link stays
+        // blanket: a `data:` URL a reader can click is a different question.
+        assert!(raises(
+            "[click](data:image/png;base64,iVBORw0KGgo=)\n",
+            DiagnosticCode::UnsafeLinkProtocol
+        ));
     }
 
     #[test]

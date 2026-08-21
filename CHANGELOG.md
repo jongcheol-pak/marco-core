@@ -5,6 +5,47 @@ This project follows **Semantic Versioning** and uses the **Keep a Changelog** f
 
 Version scheme note: `marco-core` and `marco-shared` follow independent semver from the application binaries (marco/polo). The library tracks API stability for crates.io consumers; breaking API changes increment the major version.
 
+## [1.3.3] - 2026-08-21
+
+### Added
+
+#### Diagnostic code for images embedded as base64 data URIs
+
+`MD405` (`EmbeddedBase64Image`) describes an image that carries its bytes inline
+as a base64 `data:` URI rather than pointing at a file. Like `MD206` and `MD404`
+it is **never raised by this crate**: an embedded image is not a defect, so the
+analysis stays silent about it and no consumer is handed a finding it did not
+ask for. The code and its catalog metadata — title, message template (parameter
+`{mediatype}`), `Hint` severity, fix suggestion — live here so an application
+that wants to describe an embedded image, in a hover popover for instance, draws
+on the same text and numbering as every other diagnostic.
+
+### Fixed
+
+#### `MD403` reported every embedded base64 image as an unsafe protocol
+
+`data` is on the `unsafe_protocols` list, and the image check compared the URL
+scheme exactly, so any `![logo](data:image/png;base64,…)` raised
+`MD403 Unsafe image protocol` at `Error` severity — advising the author to
+switch to `https:`, which is not something an embedded image can do. A document
+of twenty embedded images got twenty red errors.
+
+The check now exempts a data URI that carries an inert image: one whose
+mediatype is listed in the new `inert_image_data_mediatypes` catalog setting
+(`image/png`, `image/jpeg`, `image/gif`, `image/webp`) **and** whose payload is
+`;base64,`. Everything else still reports, including:
+
+- `data:image/svg+xml`, base64 or not — an image mediatype, but script-capable
+  in the WebViews this crate's HTML is rendered in, so deliberately not on the
+  list;
+- a non-base64 payload such as `data:image/png,…`;
+- non-image mediatypes such as `data:text/html;base64,…`;
+- `javascript:` image sources, unchanged.
+
+The exemption applies to **images only**. The identical check on a link
+(`MD203` / `UnsafeLinkProtocol`) is unchanged and stays blanket: a `data:` URL
+a reader can click is a different question from one that renders as a picture.
+
 ## [1.3.2] - 2026-08-17
 
 ### Added

@@ -3,6 +3,10 @@
   settings: (
     heading_too_long_threshold: 120,
     unsafe_protocols: ["javascript", "data"],
+    // Image mediatypes whose `;base64,` data URIs cannot execute, and so are
+    // exempt from the unsafe-protocol check on an image source. `image/svg+xml`
+    // is deliberately absent: it is script-capable in WebKit6 and WebView2.
+    inert_image_data_mediatypes: ["image/png", "image/jpeg", "image/gif", "image/webp"],
     insecure_link_prefixes: ["http://"],
     script_tag_markers: ["<script"],
     unknown_code_fallback: "UNKNOWN",

@@ -68,6 +68,15 @@ pub struct DiagnosticsCatalogGroup {
     pub tags: Vec<String>,
 }
 
+fn default_inert_image_data_mediatypes() -> Vec<String> {
+    vec![
+        "image/png".to_string(),
+        "image/jpeg".to_string(),
+        "image/gif".to_string(),
+        "image/webp".to_string(),
+    ]
+}
+
 #[derive(Debug, Clone, Deserialize)]
 /// Shared diagnostics runtime settings loaded from catalog.
 pub struct DiagnosticsCatalogSettings {
@@ -75,6 +84,18 @@ pub struct DiagnosticsCatalogSettings {
     pub heading_too_long_threshold: usize,
     /// URL schemes considered unsafe.
     pub unsafe_protocols: Vec<String>,
+    /// Image mediatypes whose `;base64,` data URIs are inert, and so exempt
+    /// from the unsafe-protocol check on an image source.
+    ///
+    /// `data:` is on [`Self::unsafe_protocols`] because most data URIs are a
+    /// way to carry active content: `data:text/html;base64,…` runs, and so
+    /// does `data:image/svg+xml`, an image mediatype that is nonetheless
+    /// script-capable in the WebViews this crate's HTML is rendered in. A
+    /// base64 raster image cannot execute, so listing it here stops it being
+    /// reported as an unsafe protocol. Applies to images only — a `data:` URL
+    /// in a *link* is unaffected.
+    #[serde(default = "default_inert_image_data_mediatypes")]
+    pub inert_image_data_mediatypes: Vec<String>,
     /// URL prefixes treated as insecure.
     pub insecure_link_prefixes: Vec<String>,
     /// Marker substrings used to detect script tags.
@@ -94,6 +115,7 @@ impl Default for DiagnosticsCatalogSettings {
         Self {
             heading_too_long_threshold: 120,
             unsafe_protocols: vec!["javascript".to_string(), "data".to_string()],
+            inert_image_data_mediatypes: default_inert_image_data_mediatypes(),
             insecure_link_prefixes: vec!["http://".to_string()],
             script_tag_markers: vec!["<script".to_string()],
             unknown_code_fallback: "UNKNOWN".to_string(),
@@ -303,6 +325,14 @@ mod tests {
         let settings = diagnostics_catalog_settings();
         assert!(settings.heading_too_long_threshold > 0);
         assert!(!settings.unsafe_protocols.is_empty());
+        assert!(settings
+            .inert_image_data_mediatypes
+            .iter()
+            .any(|item| item == "image/png"));
+        assert!(!settings
+            .inert_image_data_mediatypes
+            .iter()
+            .any(|item| item == "image/svg+xml"));
         assert!(!settings.insecure_link_prefixes.is_empty());
         assert!(!settings.script_tag_markers.is_empty());
         assert!(!settings.unknown_code_fallback.is_empty());
