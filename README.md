@@ -129,7 +129,7 @@ let completions = provider.completions(""); // context-aware suggestions
 - UTF-8 sanitization (`&[u8]` → `String`) strips null bytes and invalid sequences before parsing
 - GFM task list checkboxes and admonitions render as SVG icons (no CSS-only dependency)
 - Render-time security policies for untrusted input — raw HTML and unsafe URL schemes, see [Rendering Markdown you did not write](#rendering-markdown-you-did-not-write)
-- 699 tests — 560 unit, 108 integration, 31 doc — all green on the default feature set
+- 725 tests — 565 unit, 129 integration, 31 doc — all green on the default feature set
 
 ## When to use marco-core
 

