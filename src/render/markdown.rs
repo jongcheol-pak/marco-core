@@ -788,7 +788,10 @@ fn render_node(
                 let rendered = if let Some(cached) = ctx.mermaid_result_cache.get(&cache_key) {
                     cached.clone()
                 } else {
-                    let fresh = match render_mermaid_diagram(content, &options.theme) {
+                    // `true` preserves 1.3.3 behaviour exactly, and becomes
+                    // `options.html == HtmlPolicy::Allow` when the policies are
+                    // wired through the renderer.
+                    let fresh = match render_mermaid_diagram(content, &options.theme, true) {
                         Ok(svg) => Ok(svg),
                         Err(e) => Err(e.to_string()),
                     };
