@@ -62,7 +62,12 @@ fn run_fixture_suite(name: &str, json: &str) {
                 name, case.example, case.section, case.start_line, case.end_line, e, case.markdown
             )
         });
-        let actual = render(&doc, &RenderOptions::default()).unwrap_or_else(|e| {
+        // `commonmark()`: fixtures assert exact HTML for the parser and
+        // renderer, so they must not be filtered by the default security
+        // policy. Today no extension fixture contains raw HTML, so `default()`
+        // also passed — but only by luck, and the next fixture that does would
+        // fail for a reason that has nothing to do with the extension.
+        let actual = render(&doc, &RenderOptions::commonmark()).unwrap_or_else(|e| {
             panic!(
                 "{} ex {} [{}] L{:?}-L{:?}: render error: {}\nmarkdown: {:?}",
                 name, case.example, case.section, case.start_line, case.end_line, e, case.markdown

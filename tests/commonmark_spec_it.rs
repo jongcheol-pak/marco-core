@@ -90,7 +90,11 @@ fn load_cases(json: &str) -> Vec<SpecCase> {
 
 fn render_case(markdown: &str) -> Result<String, String> {
     let doc = parse(markdown).map_err(|e| format!("parse: {e}"))?;
-    let html = render(&doc, &RenderOptions::default()).map_err(|e| format!("render: {e}"))?;
+    // `commonmark()`, not `default()`: the spec includes raw-HTML examples, and
+    // the default policy escapes raw HTML. Measuring conformance against a
+    // deliberately non-conformant policy would measure the policy, not the
+    // parser. `render_byte_identity_it` is what pins this constructor's output.
+    let html = render(&doc, &RenderOptions::commonmark()).map_err(|e| format!("render: {e}"))?;
     Ok(html)
 }
 

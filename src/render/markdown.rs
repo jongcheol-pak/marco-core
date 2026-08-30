@@ -6,7 +6,8 @@ use super::math::{render_display_math, render_inline_math};
 use super::plarform_mentions;
 #[cfg(feature = "render-syntax-highlighting")]
 use super::syntect_highlighter::highlight_code_to_classed_html;
-use super::RenderOptions;
+use super::{HtmlPolicy, RenderOptions, UrlPolicy};
+use crate::logic::url_scheme::{self, UrlContext};
 use crate::parser::{AdmonitionKind, AdmonitionStyle, Document, Node, NodeKind};
 use std::collections::HashMap;
 
@@ -400,14 +401,31 @@ fn render_node(
         NodeKind::ThematicBreak => {
             output.push_str("<hr />\n");
         }
-        NodeKind::HtmlBlock { html } => {
-            // HTML blocks are rendered as-is without escaping
-            // They already contain the complete HTML including tags
-            output.push_str(html);
-            if !html.ends_with('\n') {
+        NodeKind::HtmlBlock { html } => match options.html {
+            HtmlPolicy::Allow => {
+                // The node carries the complete block, tags included.
+                output.push_str(html);
+                if !html.ends_with('\n') {
+                    output.push('\n');
+                }
+            }
+            HtmlPolicy::Escape if is_html_comment(html) => {
+                // Escaping a comment would make an invisible note visible.
+                output.push_str(RAW_HTML_OMITTED);
                 output.push('\n');
             }
-        }
+            HtmlPolicy::Escape => {
+                output.push_str(&escape_html(html));
+                if !html.ends_with('\n') {
+                    output.push('\n');
+                }
+            }
+            HtmlPolicy::Strip => {
+                // The block's text goes with it — see RAW_HTML_OMITTED.
+                output.push_str(RAW_HTML_OMITTED);
+                output.push('\n');
+            }
+        },
         NodeKind::Blockquote => {
             output.push_str("<blockquote>\n");
             for child in &node.children {
@@ -571,19 +589,27 @@ fn render_node(
             output.push_str("</sub>");
         }
         NodeKind::Link { url, title } => {
-            output.push_str("<a href=\"");
-            output.push_str(&escape_html(url));
-            output.push('"');
-            if let Some(t) = title {
-                output.push_str(" title=\"");
-                output.push_str(&escape_html(t));
+            if url_permitted(url, UrlContext::Link, options.urls) {
+                output.push_str("<a href=\"");
+                output.push_str(&escape_html(url));
                 output.push('"');
+                if let Some(t) = title {
+                    output.push_str(" title=\"");
+                    output.push_str(&escape_html(t));
+                    output.push('"');
+                }
+                output.push('>');
+                for child in &node.children {
+                    render_node(child, output, options, ctx)?;
+                }
+                output.push_str("</a>");
+            } else {
+                // Emit the link text without the anchor. Substituting `href="#"`
+                // would leave a dead control that still looks live.
+                for child in &node.children {
+                    render_node(child, output, options, ctx)?;
+                }
             }
-            output.push('>');
-            for child in &node.children {
-                render_node(child, output, options, ctx)?;
-            }
-            output.push_str("</a>");
         }
         NodeKind::PlatformMention {
             username,
@@ -654,16 +680,27 @@ fn render_node(
             output.push_str("</a></sup>");
         }
         NodeKind::Image { url, alt } => {
-            output.push_str("<img src=\"");
-            output.push_str(&escape_html(url));
-            output.push_str("\" alt=\"");
-            output.push_str(&escape_html(alt));
-            output.push_str("\" />");
+            if url_permitted(url, UrlContext::Image, options.urls) {
+                output.push_str("<img src=\"");
+                output.push_str(&escape_html(url));
+                output.push_str("\" alt=\"");
+                output.push_str(&escape_html(alt));
+                output.push_str("\" />");
+            } else {
+                // The alt text is what the image was meant to convey, so it is
+                // the honest fallback.
+                output.push_str(&escape_html(alt));
+            }
         }
-        NodeKind::InlineHtml(html) => {
-            // Pass through inline HTML directly (no escaping)
-            output.push_str(html);
-        }
+        NodeKind::InlineHtml(html) => match options.html {
+            HtmlPolicy::Allow => output.push_str(html),
+            // An inline node carries only the tag; the text it wraps is a
+            // sibling and survives either way. Nothing is lost, so nothing is
+            // announced.
+            HtmlPolicy::Escape if is_html_comment(html) => {}
+            HtmlPolicy::Escape => output.push_str(&escape_html(html)),
+            HtmlPolicy::Strip => {}
+        },
         NodeKind::HardBreak => {
             // Hard line break: <br />
             output.push_str("<br />\n");
@@ -788,13 +825,15 @@ fn render_node(
                 let rendered = if let Some(cached) = ctx.mermaid_result_cache.get(&cache_key) {
                     cached.clone()
                 } else {
-                    // `true` preserves 1.3.3 behaviour exactly, and becomes
-                    // `options.html == HtmlPolicy::Allow` when the policies are
-                    // wired through the renderer.
-                    let fresh = match render_mermaid_diagram(content, &options.theme, true) {
-                        Ok(svg) => Ok(svg),
-                        Err(e) => Err(e.to_string()),
-                    };
+                    // Interaction directives emit unfiltered anchors into the
+                    // SVG, so they follow the raw-HTML policy: permitted only
+                    // where raw HTML itself is.
+                    let allow_interaction = options.html == HtmlPolicy::Allow;
+                    let fresh =
+                        match render_mermaid_diagram(content, &options.theme, allow_interaction) {
+                            Ok(svg) => Ok(svg),
+                            Err(e) => Err(e.to_string()),
+                        };
                     ctx.mermaid_result_cache.insert(cache_key, fresh.clone());
                     fresh
                 };
@@ -1345,6 +1384,40 @@ fn render_list_item(
 
     output.push_str("</li>\n");
     Ok(())
+}
+
+/// Whether a URL may be emitted under `policy`.
+///
+/// The decision is made on a normalised copy of the URL — see
+/// [`crate::logic::url_scheme`] — but the URL emitted into the document is
+/// always the author's original text. This function decides *whether* to emit,
+/// never *what* to emit.
+fn url_permitted(url: &str, context: UrlContext, policy: UrlPolicy) -> bool {
+    match policy {
+        UrlPolicy::Allow => true,
+        UrlPolicy::BlockDangerous => !url_scheme::is_dangerous(url, context),
+        UrlPolicy::SafeSchemesOnly => url_scheme::is_safe(url, context),
+    }
+}
+
+/// Emitted in place of a stripped HTML block.
+///
+/// Byte-identical to comrak's and goldmark's placeholder, so tooling and greps
+/// that already recognise it work against marco-core output too. Only block
+/// stripping emits it: an HTML block carries its own text, so removing one
+/// destroys author content and the loss should be greppable. Inline HTML
+/// carries only the tag, so nothing is lost and a placeholder mid-sentence
+/// would be noise.
+const RAW_HTML_OMITTED: &str = "<!-- raw HTML omitted -->";
+
+/// Whether a raw HTML fragment is a comment.
+///
+/// Comments are removed under both [`HtmlPolicy::Escape`] and
+/// [`HtmlPolicy::Strip`], never escaped: escaping one inverts its meaning,
+/// turning an invisible `<!-- internal note -->` into visible text in the
+/// reader's face.
+fn is_html_comment(html: &str) -> bool {
+    html.trim_start().starts_with("<!--")
 }
 
 // Escape HTML special characters to prevent XSS and ensure proper display

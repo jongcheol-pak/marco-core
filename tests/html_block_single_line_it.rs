@@ -6,7 +6,10 @@ fn test_single_line_html_block_does_not_swallow_following_markdown() {
 
     let doc = marco_core::parser::parse(md).expect("parse failed");
 
-    let html = marco_core::render::render(&doc, &marco_core::render::RenderOptions::default())
+    // `commonmark()`: this is a regression test for where the *parser* ends an
+    // HTML block, so it needs the policy that emits raw HTML rather than the
+    // safe default, which would escape it and hide what is being tested.
+    let html = marco_core::render::render(&doc, &marco_core::render::RenderOptions::commonmark())
         .expect("render failed");
 
     assert!(
