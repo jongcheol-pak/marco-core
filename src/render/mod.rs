@@ -3,6 +3,8 @@
 //! This module exposes the stable rendering API used by consumers:
 //! [`render()`] and [`RenderOptions`].
 
+use crate::error::MarcoError;
+
 /// Base stylesheet used by preview rendering.
 pub mod base_css;
 /// Language normalization and metadata for code blocks.
@@ -44,10 +46,7 @@ pub use theme_meta::*;
 use crate::parser::Document;
 
 /// Render a parsed Markdown [`Document`] into HTML.
-pub fn render(
-    document: &Document,
-    options: &RenderOptions,
-) -> Result<String, Box<dyn std::error::Error>> {
+pub fn render(document: &Document, options: &RenderOptions) -> Result<String, MarcoError> {
     log::info!("Starting HTML render");
     let html = render_html(document, options)?;
     log::debug!("Generated {} bytes of HTML", html.len());

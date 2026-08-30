@@ -2,6 +2,8 @@
 //!
 //! This layer converts block grammar outputs into AST nodes with positions.
 
+use crate::error::MarcoError;
+
 /// Shared block parser utilities.
 pub mod shared;
 
@@ -166,7 +168,7 @@ impl ParserState {
 // ============================================================================
 
 /// Parse document into block-level structure, returning a Document
-pub fn parse_blocks(input: &str) -> Result<Document, Box<dyn std::error::Error>> {
+pub fn parse_blocks(input: &str) -> Result<Document, MarcoError> {
     let mut state = ParserState::new();
     parse_blocks_internal(input, 0, &mut state)
 }
@@ -176,12 +178,19 @@ fn parse_blocks_internal(
     input: &str,
     depth: usize,
     state: &mut ParserState,
-) -> Result<Document, Box<dyn std::error::Error>> {
-    // Prevent infinite recursion
+) -> Result<Document, MarcoError> {
+    // Prevent infinite recursion.
+    //
+    // This reports rather than truncating. Returning `Ok(Document::new())` --
+    // as this did until the error type existed -- discarded the document and
+    // told the caller it had succeeded, so "the input was empty" and "we gave
+    // up" were indistinguishable and a server would serve a blank page with a
+    // 200. Nesting this deep is generated or hostile; a human-written document
+    // does not reach it.
     const MAX_DEPTH: usize = 100;
     if depth > MAX_DEPTH {
-        log::warn!("Maximum recursion depth reached in block parser");
-        return Ok(Document::new());
+        log::warn!("Maximum recursion depth ({MAX_DEPTH}) reached in block parser");
+        return Err(MarcoError::MaxDepthExceeded { depth: MAX_DEPTH });
     }
 
     log::debug!(

@@ -3,6 +3,8 @@
 //! Handles conversion of lists (both ordered and unordered) from grammar layer to parser AST,
 //! including tight/loose determination, item content dedenting, and recursive block parsing.
 
+use crate::error::MarcoError;
+
 use super::shared::{dedent_list_item_content, opt_span, opt_span_range, GrammarSpan};
 use crate::grammar::blocks::cm_list::ListMarker;
 use crate::parser::ast::{Document, Node, NodeKind};
@@ -60,9 +62,9 @@ pub fn parse_list<F, S, G>(
     depth: usize,
     parse_blocks_fn: F,
     mut create_state_fn: G,
-) -> Result<Node, Box<dyn std::error::Error>>
+) -> Result<Node, MarcoError>
 where
-    F: Fn(&str, usize, &mut S) -> Result<Document, Box<dyn std::error::Error>>,
+    F: Fn(&str, usize, &mut S) -> Result<Document, MarcoError>,
     G: FnMut(usize) -> S,
 {
     // Determine if tight or loose
@@ -319,7 +321,7 @@ mod tests {
         input: &str,
         _depth: usize,
         _state: &mut MockState,
-    ) -> Result<Document, Box<dyn std::error::Error>> {
+    ) -> Result<Document, MarcoError> {
         let mut doc = Document::new();
         if !input.is_empty() {
             doc.children.push(Node {

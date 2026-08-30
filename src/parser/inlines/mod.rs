@@ -5,6 +5,8 @@
 //!
 //! Phase 5: Inline parser module extraction
 
+use crate::error::MarcoError;
+
 // Shared utilities for all inline parsers
 pub mod shared;
 
@@ -71,7 +73,7 @@ use shared::GrammarSpan;
 /// Parse inline elements within text content
 /// Takes a GrammarSpan to preserve position information
 /// Returns a vector of inline nodes (Text, Emphasis, Strong, Link, CodeSpan)
-pub fn parse_inlines_from_span(span: GrammarSpan) -> Result<Vec<Node>, Box<dyn std::error::Error>> {
+pub fn parse_inlines_from_span(span: GrammarSpan) -> Result<Vec<Node>, MarcoError> {
     log::debug!(
         "Parsing inline elements in span at line {}: {:?}",
         span.location_line(),
@@ -419,7 +421,7 @@ fn last_emitted_char(items: &[Item]) -> Option<char> {
 /// Parse inline elements within text content (backward compatibility wrapper)
 /// Creates a new span at position 0:0 - USE parse_inlines_from_span() for position-aware parsing
 /// Returns a vector of inline nodes (Text, Emphasis, Strong, Link, CodeSpan)
-pub fn parse_inlines(text: &str) -> Result<Vec<Node>, Box<dyn std::error::Error>> {
+pub fn parse_inlines(text: &str) -> Result<Vec<Node>, MarcoError> {
     parse_inlines_from_span(GrammarSpan::new(text))
 }
 

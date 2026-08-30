@@ -3,6 +3,8 @@
 //! Handles conversion of blockquotes (> prefixed lines) from grammar layer to parser AST,
 //! including recursive block parsing and lazy continuation line handling.
 
+use crate::error::MarcoError;
+
 use super::shared::{opt_span, GrammarSpan};
 use crate::parser::ast::{Document, Node, NodeKind};
 
@@ -39,9 +41,9 @@ pub fn parse_blockquote<F>(
     content: GrammarSpan,
     depth: usize,
     parse_blocks_fn: F,
-) -> Result<Node, Box<dyn std::error::Error>>
+) -> Result<Node, MarcoError>
 where
-    F: FnOnce(&str, usize) -> Result<Document, Box<dyn std::error::Error>>,
+    F: FnOnce(&str, usize) -> Result<Document, MarcoError>,
 {
     let span = opt_span(content);
 
@@ -103,10 +105,7 @@ mod tests {
     use crate::parser::ast::NodeKind;
 
     // Mock parse function for testing
-    fn mock_parse_blocks(
-        input: &str,
-        _depth: usize,
-    ) -> Result<Document, Box<dyn std::error::Error>> {
+    fn mock_parse_blocks(input: &str, _depth: usize) -> Result<Document, MarcoError> {
         let mut doc = Document::new();
         if !input.is_empty() {
             doc.children.push(Node {

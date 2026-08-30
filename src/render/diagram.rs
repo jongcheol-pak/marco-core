@@ -1,3 +1,4 @@
+use crate::error::MarcoError;
 use std::borrow::Cow;
 use std::panic;
 
@@ -110,19 +111,17 @@ pub(crate) fn create_mermaid_theme(theme_hint: &str) -> MermaidTheme {
 }
 
 /// Normalize and validate Mermaid source before rendering.
-fn normalize_mermaid_source(diagram: &str) -> Result<Cow<'_, str>, Box<dyn std::error::Error>> {
+fn normalize_mermaid_source(diagram: &str) -> Result<Cow<'_, str>, MarcoError> {
     let trimmed = diagram.trim();
     if trimmed.is_empty() {
-        return Err("Empty Mermaid diagram".into());
+        return Err(MarcoError::diagram("Empty Mermaid diagram"));
     }
 
     if trimmed.len() > MERMAID_MAX_CHARS {
-        return Err(format!(
-            "Mermaid diagram too large ({} chars > max {})",
+        return Err(MarcoError::diagram(format!(
+            "Mermaid diagram too large ({} chars > max {MERMAID_MAX_CHARS})",
             trimmed.len(),
-            MERMAID_MAX_CHARS
-        )
-        .into());
+        )));
     }
 
     if let Some(first_line_end) = trimmed.find('\n') {
@@ -141,15 +140,13 @@ fn normalize_mermaid_source(diagram: &str) -> Result<Cow<'_, str>, Box<dyn std::
                     if last_line == fence {
                         let inner = body[..last_nl].trim();
                         if inner.is_empty() {
-                            return Err("Empty Mermaid diagram".into());
+                            return Err(MarcoError::diagram("Empty Mermaid diagram"));
                         }
                         if inner.len() > MERMAID_MAX_CHARS {
-                            return Err(format!(
-                                "Mermaid diagram too large ({} chars > max {})",
+                            return Err(MarcoError::diagram(format!(
+                                "Mermaid diagram too large ({} chars > max {MERMAID_MAX_CHARS})",
                                 inner.len(),
-                                MERMAID_MAX_CHARS
-                            )
-                            .into());
+                            )));
                         }
                         return Ok(Cow::Owned(inner.to_string()));
                     }
@@ -221,7 +218,7 @@ pub fn render_mermaid_diagram(
     diagram: &str,
     theme_hint: &str,
     allow_interaction: bool,
-) -> Result<String, Box<dyn std::error::Error>> {
+) -> Result<String, MarcoError> {
     let normalized = normalize_mermaid_source(diagram)?;
 
     let source = if allow_interaction {
@@ -243,15 +240,19 @@ pub fn render_mermaid_diagram(
     match result {
         Ok(Ok(svg)) => {
             if !allow_interaction && svg_contains_link(&svg) {
-                return Err(
-                    "Mermaid output contains a link after interaction directives were stripped"
-                        .into(),
-                );
+                return Err(MarcoError::diagram(
+                    "Mermaid output contains a link after interaction directives were stripped",
+                ));
             }
             Ok(svg)
         }
-        Ok(Err(e)) => Err(e.into()),
-        Err(_) => Err("Mermaid rendering panicked (likely invalid diagram syntax)".into()),
+        // The upstream error is stringified rather than carried: it is an
+        // `anyhow::Error` from a feature-gated dependency, and putting it in a
+        // variant would make the public API depend on `render-diagrams`.
+        Ok(Err(e)) => Err(MarcoError::diagram(e.to_string())),
+        Err(_) => Err(MarcoError::diagram(
+            "Mermaid rendering panicked (likely invalid diagram syntax)",
+        )),
     }
 }
 
@@ -296,10 +297,13 @@ mod tests {
         );
     }
 
+    /// Asserts the variant, not the message. Message wording is not a contract;
+    /// the variant a caller matches on is.
     #[test]
     fn smoke_test_render_mermaid_diagram_rejects_empty() {
         let err =
             render_mermaid_diagram("   \n\t", "dark", true).expect_err("expected empty rejection");
+        assert!(matches!(err, MarcoError::Diagram { .. }), "got {err:?}");
         assert!(err.to_string().contains("Empty Mermaid diagram"));
     }
 
@@ -308,6 +312,7 @@ mod tests {
         let oversized = "A".repeat(MERMAID_MAX_CHARS + 1);
         let err =
             render_mermaid_diagram(&oversized, "light", true).expect_err("expected size rejection");
+        assert!(matches!(err, MarcoError::Diagram { .. }), "got {err:?}");
         assert!(err.to_string().contains("too large"));
     }
 

@@ -1,4 +1,6 @@
 #[cfg(feature = "file-logger")]
+use crate::error::MarcoError;
+#[cfg(feature = "file-logger")]
 use chrono::Local;
 #[cfg(feature = "file-logger")]
 use log::{Level, LevelFilter, Log, Metadata, Record};
@@ -35,7 +37,7 @@ const MAX_LOG_BYTES: u64 = 10 * 1024 * 1024; // 10 MiB
 #[cfg(feature = "file-logger")]
 impl SimpleFileLogger {
     /// Initialize the global file logger.
-    pub fn init(enabled: bool, level: LevelFilter) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn init(enabled: bool, level: LevelFilter) -> Result<(), MarcoError> {
         if !enabled {
             log::set_max_level(LevelFilter::Off);
             return Ok(());
@@ -95,14 +97,12 @@ impl SimpleFileLogger {
         }
 
         let log_root = log_root.unwrap_or_else(|| PathBuf::from("/tmp/marco/log"));
-        fs::create_dir_all(&log_root)
-            .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
+        fs::create_dir_all(&log_root)?;
 
         // YYYYMM folder
         let month_folder = Local::now().format("%Y%m").to_string();
         let month_dir = log_root.join(month_folder);
-        fs::create_dir_all(&month_dir)
-            .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
+        fs::create_dir_all(&month_dir)?;
         // File name: YYMMDD.log
         let file_name = Local::now().format("%y%m%d.log").to_string();
         let file_path = month_dir.join(file_name);
@@ -110,8 +110,7 @@ impl SimpleFileLogger {
         let file = OpenOptions::new()
             .create(true)
             .append(true)
-            .open(&file_path)
-            .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
+            .open(&file_path)?;
 
         let initial_size = file.metadata().map(|m| m.len()).unwrap_or(0);
 
@@ -151,7 +150,9 @@ impl SimpleFileLogger {
                         Box::from_raw(leaked as *const SimpleFileLogger as *mut SimpleFileLogger);
                 }
                 // Return an error to the caller so the application can decide how to surface it.
-                Err(format!("Failed to set global logger: {}", e).into())
+                Err(MarcoError::logger_init(format!(
+                    "failed to set global logger: {e}"
+                )))
             }
         }
     }
@@ -267,11 +268,8 @@ impl Log for SimpleFileLogger {
 
 /// Initialize file logging with enable flag and maximum log level.
 #[cfg(feature = "file-logger")]
-pub fn init_file_logger(
-    enabled: bool,
-    level: LevelFilter,
-) -> Result<(), Box<dyn std::error::Error>> {
-    SimpleFileLogger::init(enabled, level).map_err(|e| format!("{}", e).into())
+pub fn init_file_logger(enabled: bool, level: LevelFilter) -> Result<(), MarcoError> {
+    SimpleFileLogger::init(enabled, level)
 }
 
 /// Returns true if the file logger was successfully initialized by this library.
@@ -356,7 +354,7 @@ pub fn total_log_size_bytes() -> u64 {
 /// Delete all logs under the root logs directory.
 /// Best-effort: removes files and month folders, returns error on I/O failures.
 #[cfg(feature = "file-logger")]
-pub fn delete_all_logs() -> Result<(), Box<dyn std::error::Error>> {
+pub fn delete_all_logs() -> Result<(), MarcoError> {
     use std::fs;
     let root = current_log_root_dir();
     if !root.exists() {

@@ -91,6 +91,28 @@ For finer control, `HtmlPolicy` is `Allow` / `Escape` / `Strip` and `UrlPolicy`
 is `Allow` / `BlockDangerous` / `SafeSchemesOnly`, set with `.with_html(…)` and
 `.with_urls(…)`.
 
+### Errors
+
+`parse` and `render` return `Result<T, MarcoError>`. It is **`Send + Sync`**, so
+`?` works in an `anyhow::Result` handler and it crosses `.await` and
+`tokio::spawn` boundaries — no `.map_err(|e| e.to_string())` at every call site.
+
+It is an enum, so failures can be told apart. A malformed document is the
+author's fault; a failed subsystem is yours:
+
+```rust
+use marco_core::MarcoError;
+
+match marco_core::parse(input) {
+    Ok(doc) => { /* … */ }
+    Err(MarcoError::MaxDepthExceeded { .. }) => { /* 400 — reject the input */ }
+    Err(_) => { /* 500 — something here is broken */ }
+}
+```
+
+`MarcoError` and its variants are `#[non_exhaustive]`: match with a `_` arm, and
+expect new variants in minor releases rather than major ones.
+
 Editor intelligence:
 
 ```rust
@@ -129,7 +151,8 @@ let completions = provider.completions(""); // context-aware suggestions
 - UTF-8 sanitization (`&[u8]` → `String`) strips null bytes and invalid sequences before parsing
 - GFM task list checkboxes and admonitions render as SVG icons (no CSS-only dependency)
 - Render-time security policies for untrusted input — raw HTML and unsafe URL schemes, see [Rendering Markdown you did not write](#rendering-markdown-you-did-not-write)
-- 725 tests — 565 unit, 129 integration, 31 doc — all green on the default feature set
+- Errors are a concrete `Send + Sync` enum, so `?` works with `anyhow` and across `.await` — see [Errors](#errors)
+- 737 tests — 569 unit, 137 integration, 31 doc — all green on the default feature set
 
 ## When to use marco-core
 

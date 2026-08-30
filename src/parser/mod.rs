@@ -2,6 +2,8 @@
 //!
 //! The parser layer consumes grammar outputs and builds the crate AST.
 
+use crate::error::MarcoError;
+
 /// AST node and document types.
 pub mod ast;
 /// Position and span utilities.
@@ -83,12 +85,9 @@ impl Default for ParseOptions {
 /// };
 /// let doc = marco_core::parse_with_options("# Hello", opts)?;
 /// // All node spans are None — position computation was skipped.
-/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// # Ok::<(), marco_core::MarcoError>(())
 /// ```
-pub fn parse_with_options(
-    input: &str,
-    opts: ParseOptions,
-) -> Result<Document, Box<dyn std::error::Error>> {
+pub fn parse_with_options(input: &str, opts: ParseOptions) -> Result<Document, MarcoError> {
     log::info!("Starting parse: {} bytes", input.len());
 
     // Set thread-local options for the duration of this parse call.
@@ -106,7 +105,7 @@ pub fn parse_with_options(
 }
 
 /// Parse Markdown text into Document AST using default options (full-featured).
-pub fn parse(input: &str) -> Result<Document, Box<dyn std::error::Error>> {
+pub fn parse(input: &str) -> Result<Document, MarcoError> {
     parse_with_options(input, ParseOptions::default())
 }
 

@@ -7,6 +7,7 @@ use super::plarform_mentions;
 #[cfg(feature = "render-syntax-highlighting")]
 use super::syntect_highlighter::highlight_code_to_classed_html;
 use super::{HtmlPolicy, RenderOptions, UrlPolicy};
+use crate::error::MarcoError;
 use crate::logic::url_scheme::{self, UrlContext};
 use crate::parser::{AdmonitionKind, AdmonitionStyle, Document, Node, NodeKind};
 use std::collections::HashMap;
@@ -55,10 +56,7 @@ struct RenderContext<'a> {
 }
 
 /// Render a parsed Markdown document into HTML.
-pub fn render_html(
-    document: &Document,
-    options: &RenderOptions,
-) -> Result<String, Box<dyn std::error::Error>> {
+pub fn render_html(document: &Document, options: &RenderOptions) -> Result<String, MarcoError> {
     log::debug!("Rendering {} nodes to HTML", document.len());
 
     // Estimate output size: typical HTML is ~1.5–2× the AST node count × avg node bytes.
@@ -269,7 +267,7 @@ fn render_node(
     output: &mut String,
     options: &RenderOptions,
     ctx: &mut RenderContext<'_>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), MarcoError> {
     match &node.kind {
         NodeKind::Heading { level, text, id } => {
             log::trace!("Rendering heading level {}", level);
@@ -832,7 +830,12 @@ fn render_node(
                     let fresh =
                         match render_mermaid_diagram(content, &options.theme, allow_interaction) {
                             Ok(svg) => Ok(svg),
-                            Err(e) => Err(e.to_string()),
+                            // The fallback `title=` attribute already reads
+                            // "Failed to render diagram: …", so it wants the
+                            // detail rather than `Display`, which would prefix
+                            // its own sentence and read twice.
+                            Err(MarcoError::Diagram { message }) => Err(message),
+                            Err(other) => Err(other.to_string()),
                         };
                     ctx.mermaid_result_cache.insert(cache_key, fresh.clone());
                     fresh
@@ -937,7 +940,7 @@ fn render_tab_group(
     output: &mut String,
     options: &RenderOptions,
     ctx: &mut RenderContext<'_>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), MarcoError> {
     // Assign a stable sequential id for this render pass.
     let group_id = ctx.tab_group_counter;
     ctx.tab_group_counter = ctx.tab_group_counter.saturating_add(1);
@@ -1006,7 +1009,7 @@ fn render_slider_deck(
     output: &mut String,
     options: &RenderOptions,
     ctx: &mut RenderContext<'_>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), MarcoError> {
     let timer_seconds = match &node.kind {
         NodeKind::SliderDeck { timer_seconds } => *timer_seconds,
         other => {
@@ -1171,7 +1174,7 @@ fn render_table(
     output: &mut String,
     options: &RenderOptions,
     ctx: &mut RenderContext<'_>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), MarcoError> {
     output.push_str("<table>\n");
 
     let mut header_rows: Vec<&Node> = Vec::new();
@@ -1214,7 +1217,7 @@ fn render_table_row(
     output: &mut String,
     options: &RenderOptions,
     ctx: &mut RenderContext<'_>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), MarcoError> {
     output.push_str("<tr>");
     for cell in &node.children {
         render_table_cell(cell, output, options, ctx)?;
@@ -1228,7 +1231,7 @@ fn render_table_cell(
     output: &mut String,
     options: &RenderOptions,
     ctx: &mut RenderContext<'_>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), MarcoError> {
     let (is_header, alignment) = match &node.kind {
         NodeKind::TableCell { header, alignment } => (*header, *alignment),
         _ => {
@@ -1273,7 +1276,7 @@ fn render_list_item(
     tight: bool,
     options: &RenderOptions,
     ctx: &mut RenderContext<'_>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), MarcoError> {
     let task_checked = match node.children.first().map(|n| &n.kind) {
         Some(NodeKind::TaskCheckbox { checked }) => Some(*checked),
         _ => None,

@@ -1,3 +1,4 @@
+use crate::error::MarcoError;
 use katex::{
     render_to_string as katex_render, KatexContext, OutputFormat, Settings as KatexSettings,
 };
@@ -7,23 +8,29 @@ use std::sync::OnceLock;
 static KATEX_CONTEXT: OnceLock<KatexContext> = OnceLock::new();
 
 /// Render inline math using KaTeX.
-pub(crate) fn render_inline_math(latex: &str) -> Result<String, Box<dyn std::error::Error>> {
+pub(crate) fn render_inline_math(latex: &str) -> Result<String, MarcoError> {
     let ctx = KATEX_CONTEXT.get_or_init(KatexContext::default);
     let settings = KatexSettings::builder()
         .output(OutputFormat::Mathml)
         .build();
-    let html = katex_render(ctx, latex, &settings)?;
+    // Stringified rather than carried: `katex-rs` lives behind `render-math`,
+    // and a variant holding its error type would make the public API depend on
+    // that feature.
+    let html = katex_render(ctx, latex, &settings).map_err(|e| MarcoError::math(e.to_string()))?;
     Ok(normalize_math_attrs(html))
 }
 
 /// Render display math using KaTeX.
-pub(crate) fn render_display_math(latex: &str) -> Result<String, Box<dyn std::error::Error>> {
+pub(crate) fn render_display_math(latex: &str) -> Result<String, MarcoError> {
     let ctx = KATEX_CONTEXT.get_or_init(KatexContext::default);
     let settings = KatexSettings::builder()
         .display_mode(true)
         .output(OutputFormat::Mathml)
         .build();
-    let html = katex_render(ctx, latex, &settings)?;
+    // Stringified rather than carried: `katex-rs` lives behind `render-math`,
+    // and a variant holding its error type would make the public API depend on
+    // that feature.
+    let html = katex_render(ctx, latex, &settings).map_err(|e| MarcoError::math(e.to_string()))?;
     Ok(normalize_math_attrs(html))
 }
 

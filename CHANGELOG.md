@@ -37,6 +37,38 @@ reason about which pairing constitutes a security boundary:
 versions without any consumer changing a line — which is the point of having it
 rather than a documented combination of flags.
 
+#### `MarcoError` — a concrete error type
+
+`parse` and `render` return `Result<T, MarcoError>` instead of
+`Result<T, Box<dyn std::error::Error>>`. `MarcoError` is a public
+`#[non_exhaustive]` enum implementing `std::error::Error`, and — unlike what it
+replaces — it is **`Send + Sync`**.
+
+That matters for a backend. `Box<dyn Error>` is neither, so it could not cross
+an `.await` or `tokio::spawn` boundary, and `?` did not compile against
+`anyhow::Result` at all. Every web consumer was paying
+`.map_err(|e| e.to_string())` at every call site and losing the source chain.
+
+Being an enum, failures can also be told apart — a malformed document is a 400,
+a broken subsystem a 500:
+
+```rust
+match marco_core::parse(input) {
+    Err(MarcoError::MaxDepthExceeded { .. }) => StatusCode::BAD_REQUEST,
+    Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
+    Ok(doc) => ...,
+}
+```
+
+Most code needs no change: `?` still converts into `Box<dyn Error>`. Code that
+named the error type in a signature or a `map_err` does.
+
+The enum and every field-carrying variant are `#[non_exhaustive]`, so new
+failure modes and new fields are both minor bumps. No variant carries a type
+from `nom`, `katex-rs` or `mermaid-rs-renderer`: the first would make swapping
+the parser a breaking change, the others would make the public API depend on a
+feature flag.
+
 #### `logic::url_scheme` — URL scheme classification
 
 The normalisation and classification shared by the renderer and the diagnostics
@@ -101,6 +133,16 @@ Configuration serialized by 1.x still loads: both new fields are
 behaviour.
 
 ### Fixed
+
+#### Deeply nested documents were silently discarded
+
+Past 100 levels of block nesting the parser logged a warning and returned
+`Ok(Document::new())` — an empty AST, indistinguishable from empty input. A
+server would render a blank page and return 200, with no way for the caller to
+tell that anything had been dropped.
+
+It now returns `Err(MarcoError::MaxDepthExceeded { depth })`. Data loss reported
+as success becomes data loss reported as failure.
 
 #### `UnsafeLinkProtocol` missed every encoded form of a dangerous scheme
 

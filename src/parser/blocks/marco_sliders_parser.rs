@@ -6,6 +6,8 @@
 //!
 //! Each slide's raw markdown is recursively parsed as block nodes.
 
+use crate::error::MarcoError;
+
 use super::shared::{opt_span, opt_span_range, GrammarSpan};
 use crate::grammar::blocks::marco_sliders::MarcoSlideDeck;
 use crate::parser::ast::{Document, Node, NodeKind};
@@ -23,9 +25,9 @@ pub fn parse_marco_slide_deck<F>(
     full_end: GrammarSpan<'_>,
     depth: usize,
     mut parse_blocks_fn: F,
-) -> Result<Node, Box<dyn std::error::Error>>
+) -> Result<Node, MarcoError>
 where
-    F: FnMut(&str, usize) -> Result<Document, Box<dyn std::error::Error>>,
+    F: FnMut(&str, usize) -> Result<Document, MarcoError>,
 {
     let deck_span = opt_span_range(full_start, full_end);
 
@@ -66,10 +68,7 @@ mod tests {
     use super::*;
     use crate::grammar::shared::Span;
 
-    fn mock_parse_blocks(
-        input: &str,
-        _depth: usize,
-    ) -> Result<Document, Box<dyn std::error::Error>> {
+    fn mock_parse_blocks(input: &str, _depth: usize) -> Result<Document, MarcoError> {
         let mut doc = Document::new();
         if !input.trim().is_empty() {
             doc.children.push(Node {

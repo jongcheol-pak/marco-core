@@ -11,12 +11,14 @@
 //! let html = marco_core::render(&doc, &marco_core::RenderOptions::default())?;
 //! assert!(html.contains("<h1"));
 //! assert!(html.contains("Hello"));
-//! # Ok::<(), Box<dyn std::error::Error>>(())
+//! # Ok::<(), marco_core::MarcoError>(())
 //! ```
 
 /// The crate version from `Cargo.toml`, exposed for downstream UIs and diagnostics.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// The crate's error type.
+pub mod error;
 /// Low-level Markdown grammar components (block and inline parsers).
 pub mod grammar;
 /// Editor intelligence APIs such as diagnostics, highlights, completions, and TOC.
@@ -28,6 +30,12 @@ pub mod parser;
 /// HTML rendering and rendering options.
 pub mod render;
 
+/// The error returned by [`parse`] and [`render`].
+///
+/// `Send + Sync`, so it converts into `anyhow::Error` with `?` and crosses an
+/// `.await` boundary — neither of which was true of the `Box<dyn Error>` it
+/// replaced in 1.x.
+pub use error::MarcoError;
 /// Main intelligence provider used by downstream editor integrations.
 pub use intelligence::MarkdownIntelligenceProvider;
 /// Diagnostic reporting types.
