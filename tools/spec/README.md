@@ -4,6 +4,24 @@ Test fixtures used by:
 
 - `tests/commonmark_spec_it.rs` — loads `commonmark.json` + `diagram.json` + `gfm.json` + `marco.json` + `math.json`
 - `tools/tests/extension_spec_it.rs` — loads `diagram.json` + `gfm.json` + `marco.json` + `math.json` + `combos.json`
+- `tests/render_byte_identity_it.rs` — renders every example and compares against a committed baseline
+- `tools/perf-lab` — as **benchmark workloads**, see below
+
+All three test suites render with `RenderOptions::commonmark()`, never
+`::default()`. The default escapes raw HTML, and these fixtures are full of it,
+so measuring under the safe policy would measure the policy rather than the
+parser.
+
+## A note on how `perf-lab` uses these files
+
+`perf-lab` feeds each `.json` file to the parser **whole, as Markdown text** —
+not the `markdown` field of each example. So the `spec:gfm` workload is the
+6 KB JSON file parsed as a document, which produces one long paragraph of text
+and soft breaks rather than the constructs the fixture describes.
+
+That is fine for a stable, reproducible workload, but it means `spec:*`
+benchmark numbers say nothing about the performance of the feature the fixture
+is named after. Use `fixtures/` for representative documents.
 
 ## `commonmark.json`
 

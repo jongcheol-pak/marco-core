@@ -10,6 +10,14 @@ crates.io (`publish = false`).
 | [`spec/`](spec/README.md) | CommonMark and extension spec fixture JSON files |
 | [`tests/`](tests/README.md) | Extension spec conformance tests (loaded by `perf-lab`) |
 
+Everything here consumes `marco-core` as an **external crate**, so these tools
+see exactly the public API a crates.io consumer sees — the crate root plus the
+`parser`, `render`, `intelligence` and `logic` module roots. That makes them a
+useful check on API changes: if a narrowing breaks `marco-ast`, it breaks
+downstream too. All three render with `RenderOptions::commonmark()` rather than
+the safe default, so they report what the parser and renderer do rather than
+what the security policy does.
+
 ## Building
 
 Each tool is a standalone crate with its own `Cargo.toml`. Build from the

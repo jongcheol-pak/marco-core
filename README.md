@@ -200,25 +200,47 @@ sanitising to the caller, so it wants an HTML sanitiser such as
 
 ## Performance
 
-Release build, 50-iteration mean:
+Release build, 50-iteration median, rendering with `RenderOptions::commonmark()`:
 
 | Input size | Parse | Render | End-to-end |
 |---|---|---|---|
-| Small (75 B) | 7.3 µs | 2.2 µs | 9.3 µs |
-| Medium (1.9 KB) | 126 µs | 33 µs | 154 µs |
-| Large (37 KB) | 2.25 ms | 0.56 ms | 2.79 ms |
+| Small (75 B) | 5.5 µs | 1.6 µs | 6.9 µs |
+| Medium (1.9 KB) | 96 µs | 54 µs | 149 µs |
+| Large (37 KB) | 2.21 ms | 0.56 ms | 2.78 ms |
 
-Suitable for interactive editors and real-time linting. On adversarial/pathological
-input (deeply nested emphasis, unbalanced brackets) marco-core stays within a small
-constant factor of comparable engines rather than falling off an algorithmic cliff:
-measured (marco-core mean ÷ other-engine mean, 20-iteration e2e) at 2.25x/2.32x
-against pulldown-cmark/comrak on the full `spec:commonmark` suite, and 11.4x/9.1x
-(star-pyramid) / 5.0x/1.5x (unbalanced-brackets) on the two dedicated pathological
-fixtures — see [`tools/perf-lab`](tools/perf-lab/README.md) for the benchmarking
-harness and how to reproduce these numbers. `parallel-render` and
-`parallel-parse` (on by default) add further multi-core speedups for
-code-block-heavy and flat/wide documents — see [Feature flags](#feature-flags)
-to disable them.
+Suitable for interactive editors and real-time linting. On adversarial input
+(deeply nested emphasis, unbalanced brackets) marco-core stays within a constant
+factor of comparable engines rather than falling off an algorithmic cliff.
+Measured as marco-core median ÷ other-engine median, 100-iteration render:
+1.8x / 0.7x against pulldown-cmark / comrak on the full `spec:commonmark` suite,
+9.1x / 17.6x on `star-pyramid`, and 1.1x / 3.5x on `unbalanced-brackets`.
+
+### What the security policies cost
+
+Rendering with a policy is not free, but the cost depends entirely on how much
+of the document the policy actually touches. Criterion, in-process:
+
+| Document | `commonmark()` | `default()` | `untrusted()` |
+|---|---:|---:|---:|
+| 37 KB fixture (little raw HTML, few links) | 492 µs | 515 µs (+5%) | 517 µs (+5%) |
+| Synthetic, dense in raw HTML and links | 733 µs | 1.09 ms (+49%) | 957 µs (+31%) |
+
+For an ordinary document the policies cost about **5%** — that is the dispatch
+overhead, with almost nothing to act on. The upper figure is a deliberately
+hostile corpus that is mostly links and raw HTML, and is the ceiling rather than
+a typical case.
+
+`untrusted()` being *cheaper* than `default()` on that corpus is expected:
+the allowlist rejects on a single scheme lookup, while `BlockDangerous`
+additionally runs the `data:image/*;base64` exemption check.
+
+Reproduce with `cargo bench --bench core_benchmarks -- policy`, or see
+[`tools/perf-lab`](tools/perf-lab/README.md) for the cross-engine harness and
+the `marco-core-safe` / `marco-core-untrusted` adapters.
+
+`parallel-render` and `parallel-parse` (on by default) add further multi-core
+speedups for code-block-heavy and flat/wide documents — see
+[Feature flags](#feature-flags) to disable them.
 
 ## Feature flags
 

@@ -30,6 +30,15 @@ cargo test --manifest-path tools/perf-lab/Cargo.toml --test extension_spec_it \
 Each failing case prints: fixture name, example number, section, line range,
 input markdown, expected HTML, and actual HTML.
 
+## Rendering policy
+
+These suites render with `RenderOptions::commonmark()`, **not** `::default()`.
+The default escapes raw HTML and filters URL schemes, so a fixture asserting
+exact HTML would be measuring the security policy rather than the extension
+under test. No extension fixture currently contains raw HTML, so `default()`
+would pass today — by luck, not design, and the next fixture that did would fail
+for a reason unrelated to what it tests.
+
 See [`tools/spec/README.md`](../spec/README.md) for fixture file descriptions
-and [`Documentation/testing.md`](../../Documentation/testing.md) for the
+and [`Documentation/TESTING.md`](../../Documentation/TESTING.md) for the
 broader test inventory.

@@ -68,5 +68,55 @@ fn e2e_benches(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, parse_benches, render_benches, e2e_benches);
+/// What the security policies cost.
+///
+/// The three presets differ only in what the renderer does with raw HTML and
+/// with URLs, so running one document through each isolates that cost. Two
+/// corpora on purpose:
+///
+/// - the shared fixtures, which contain little raw HTML and few links, so the
+///   policy code barely runs — this measures the *dispatch* overhead;
+/// - `POLICY_HEAVY` below, dense in exactly what the policies act on, which
+///   measures the work itself.
+///
+/// Measuring only the first would understate the cost; only the second would
+/// overstate it for a typical document.
+const POLICY_HEAVY: &str = concat!(
+    "<div class=\"note\">A block of raw HTML</div>\n\n",
+    "Text with <b>inline</b> <i>html</i> and <span data-x=\"1\">spans</span>.\n\n",
+    "[a link](https://example.com/one) and [another](https://example.com/two)\n\n",
+    "![img](https://example.com/a.png) ![img2](data:image/png;base64,iVBORw0KGgo=)\n\n",
+    "[relative](./local/path) [fragment](#anchor) [mail](mailto:x@example.com)\n\n",
+);
+
+fn policy_benches(c: &mut Criterion) {
+    let mut group = c.benchmark_group("policy");
+
+    // Repeat so the document is big enough to measure above timer resolution.
+    let heavy = POLICY_HEAVY.repeat(200);
+
+    for (corpus_name, input) in [("fixture-large", LARGE), ("policy-heavy", heavy.as_str())] {
+        let doc = marco_core::parse(input).expect("parse failed");
+
+        for (policy_name, options) in [
+            ("commonmark", marco_core::RenderOptions::commonmark()),
+            ("default", marco_core::RenderOptions::new()),
+            ("untrusted", marco_core::RenderOptions::untrusted()),
+        ] {
+            group.bench_function(format!("{corpus_name}/{policy_name}"), |b| {
+                b.iter(|| marco_core::render(black_box(&doc), &options).expect("render failed"));
+            });
+        }
+    }
+
+    group.finish();
+}
+
+criterion_group!(
+    benches,
+    parse_benches,
+    render_benches,
+    e2e_benches,
+    policy_benches
+);
 criterion_main!(benches);

@@ -64,6 +64,21 @@ cargo run --manifest-path tools/marco-ast/Cargo.toml -- \
 - `--mode both`
 - `--mode intel`
 
+## Rendering policy
+
+`--mode html` and `--mode both` render with `RenderOptions::commonmark()`, so
+raw HTML passes through and URLs are emitted unfiltered — output matches
+marco-core 1.x.
+
+That is deliberate: a tool whose purpose is showing what the renderer does must
+not silently apply a policy you did not ask for. It also means **marco-ast is
+not a safety check.** Seeing `<script>` in its output tells you the parser
+produced a raw-HTML node, not that a consumer would emit one — under the
+library's default (`RenderOptions::default()`) that node is escaped.
+
+To see what a policy does, use the library directly or the `marco-core-safe` /
+`marco-core-untrusted` adapters in [`tools/perf-lab`](../perf-lab/README.md).
+
 ## Interactive REPL
 
 ```bash
