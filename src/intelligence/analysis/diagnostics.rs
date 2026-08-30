@@ -457,13 +457,24 @@ fn diag_catalog_message(
     );
 }
 
-fn has_disallowed_scheme(url_lower: &str, disallowed_schemes: &[String]) -> bool {
-    let scheme = url_lower
-        .split_once(':')
-        .map(|(prefix, _)| prefix)
-        .unwrap_or_default();
+/// Whether a URL's scheme is on the catalog's disallowed list.
+///
+/// The scheme comes from [`crate::logic::url_scheme::scheme_of`], which decodes
+/// before it classifies: HTML character references, percent escapes, and
+/// embedded whitespace and control characters are all resolved first. Reading
+/// the scheme off the raw string instead — as this did until the shared module
+/// existed — let `javascript&colon;alert(1)`, `javascript&#58;alert(1)` and
+/// `%6aavascript:alert(1)` through without a warning, while a browser decoded
+/// every one of them inside an `href`.
+///
+/// The list itself stays catalog-driven, so the diagnostics layer remains
+/// configurable independently of the renderer's fixed policy.
+fn has_disallowed_scheme(url: &str, disallowed_schemes: &[String]) -> bool {
+    let Some(scheme) = crate::logic::url_scheme::scheme_of(url) else {
+        return false;
+    };
 
-    !scheme.is_empty() && disallowed_schemes.iter().any(|item| item == scheme)
+    disallowed_schemes.contains(&scheme)
 }
 
 /// Whether an image source is a base64 data URI carrying an inert image.
@@ -479,18 +490,13 @@ fn has_disallowed_scheme(url_lower: &str, disallowed_schemes: &[String]) -> bool
 /// `;base64,` form. Anything else — a bare `data:image/png,` payload, an extra
 /// parameter before the `;base64`, a mediatype not on the list, a URI with no
 /// payload separator at all — is left to the caller's unsafe-protocol check.
-fn is_inert_base64_image_data_uri(url_lower: &str, inert_mediatypes: &[String]) -> bool {
-    let Some(rest) = url_lower.strip_prefix("data:") else {
-        return false;
-    };
-    let Some((metadata, _payload)) = rest.split_once(',') else {
-        return false;
-    };
-    let Some(mediatype) = metadata.strip_suffix(";base64") else {
-        return false;
-    };
-
-    inert_mediatypes.iter().any(|item| item == mediatype)
+///
+/// Parsing is shared with the renderer via
+/// [`crate::logic::url_scheme::base64_data_mediatype`]; only the list of
+/// acceptable mediatypes is local, so the catalog stays authoritative here.
+fn is_inert_base64_image_data_uri(url: &str, inert_mediatypes: &[String]) -> bool {
+    crate::logic::url_scheme::base64_data_mediatype(url)
+        .is_some_and(|mediatype| inert_mediatypes.contains(&mediatype))
 }
 
 fn starts_with_any_prefix(url_lower: &str, prefixes: &[String]) -> bool {
@@ -1284,7 +1290,95 @@ fn collect_link_reference_consistency_diagnostics(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::intelligence::catalog::diagnostics_catalog_settings;
     use crate::parser::Position;
+
+    /// The renderer cannot read this catalog — `intelligence::analysis` is
+    /// behind the `intelligence-diagnostics` feature, so a `--no-default-features`
+    /// build with only `render-*` compiles it out entirely. The two lists are
+    /// therefore separate by necessity, and this test is what stops them
+    /// drifting: an editor that warns about a scheme the renderer happily emits,
+    /// or the reverse, is worse than either alone.
+    #[test]
+    fn catalog_denylist_matches_the_renderer_denylist() {
+        let catalog = &diagnostics_catalog_settings().unsafe_protocols;
+        let renderer = crate::logic::url_scheme::DANGEROUS_SCHEMES;
+
+        let mut catalog_sorted: Vec<&str> = catalog.iter().map(String::as_str).collect();
+        catalog_sorted.sort_unstable();
+        let mut renderer_sorted: Vec<&str> = renderer.to_vec();
+        renderer_sorted.sort_unstable();
+
+        assert_eq!(
+            catalog_sorted, renderer_sorted,
+            "diagnostics_catalog_marco.ron unsafe_protocols and \
+             logic::url_scheme::DANGEROUS_SCHEMES have diverged"
+        );
+    }
+
+    /// Same reasoning as above, for the data-URI exemption.
+    #[test]
+    fn catalog_inert_mediatypes_match_the_renderer() {
+        let catalog = &diagnostics_catalog_settings().inert_image_data_mediatypes;
+        let renderer = crate::logic::url_scheme::INERT_IMAGE_DATA_MEDIATYPES;
+
+        let mut catalog_sorted: Vec<&str> = catalog.iter().map(String::as_str).collect();
+        catalog_sorted.sort_unstable();
+        let mut renderer_sorted: Vec<&str> = renderer.to_vec();
+        renderer_sorted.sort_unstable();
+
+        assert_eq!(catalog_sorted, renderer_sorted);
+    }
+
+    /// B2: these three bypassed the shipped check entirely, because the scheme
+    /// was read off the raw string. A browser decodes each inside an `href`.
+    #[test]
+    fn encoded_schemes_are_now_detected() {
+        let settings = diagnostics_catalog_settings();
+
+        for url in [
+            "javascript&colon;alert(1)",
+            "javascript&#58;alert(1)",
+            "javascript&#x3a;alert(1)",
+            "%6aavascript:alert(1)",
+            "java\tscript:alert(1)",
+            "JaVaScRiPt:alert(1)",
+        ] {
+            assert!(
+                has_disallowed_scheme(url, &settings.unsafe_protocols),
+                "not detected: {url:?}"
+            );
+        }
+    }
+
+    /// B1: both were on every comparable renderer's denylist and on neither of
+    /// marco-core's.
+    #[test]
+    fn vbscript_and_file_are_detected() {
+        let settings = diagnostics_catalog_settings();
+
+        assert!(has_disallowed_scheme(
+            "vbscript:msgbox(1)",
+            &settings.unsafe_protocols
+        ));
+        assert!(has_disallowed_scheme(
+            "file:///etc/passwd",
+            &settings.unsafe_protocols
+        ));
+    }
+
+    /// Relative URLs have no scheme and must never be reported.
+    #[test]
+    fn relative_urls_are_not_flagged() {
+        let settings = diagnostics_catalog_settings();
+
+        for url in ["./a:b", "/absolute", "#frag", "?q=1", "//host/path", "a/b"] {
+            assert!(
+                !has_disallowed_scheme(url, &settings.unsafe_protocols),
+                "false positive: {url:?}"
+            );
+        }
+    }
 
     fn span(line: usize, start_col: usize, end_col: usize, start_offset: usize) -> Span {
         Span {

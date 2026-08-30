@@ -146,27 +146,33 @@ pub fn is_safe(url: &str, _context: UrlContext) -> bool {
     }
 }
 
-/// Whether an image source is a base64 data URI carrying an inert image.
+/// The mediatype of a `data:<mediatype>;base64,…` URL, lowercased.
 ///
-/// Only the mediatypes in [`INERT_IMAGE_DATA_MEDIATYPES`] qualify, and only in
-/// their `;base64,` form. Anything else — a bare `data:image/png,` payload, an
-/// extra parameter before the `;base64`, a mediatype not on the list, a URI
-/// with no payload separator at all — is not exempt.
-fn is_inert_base64_image(url: &str) -> bool {
+/// Returns `None` for anything else — a bare `data:image/png,` payload, an
+/// extra parameter before the `;base64`, a URI with no payload separator at
+/// all, or a non-`data:` URL. Callers apply their own list of acceptable
+/// mediatypes to the result: the renderer uses
+/// [`INERT_IMAGE_DATA_MEDIATYPES`], while the diagnostics layer takes its list
+/// from the diagnostics catalog, so the two can be configured independently
+/// while sharing this parsing.
+pub fn base64_data_mediatype(url: &str) -> Option<String> {
     let cleaned: String = url.chars().filter(|c| !is_ignorable(*c)).collect();
     let lowered = cleaned.to_lowercase();
 
-    let Some(rest) = lowered.strip_prefix("data:") else {
-        return false;
-    };
-    let Some((metadata, _payload)) = rest.split_once(',') else {
-        return false;
-    };
-    let Some(mediatype) = metadata.strip_suffix(";base64") else {
-        return false;
-    };
+    let rest = lowered.strip_prefix("data:")?;
+    let (metadata, _payload) = rest.split_once(',')?;
+    let mediatype = metadata.strip_suffix(";base64")?;
 
-    INERT_IMAGE_DATA_MEDIATYPES.contains(&mediatype)
+    Some(mediatype.to_string())
+}
+
+/// Whether an image source is a base64 data URI carrying an inert image.
+///
+/// Only the mediatypes in [`INERT_IMAGE_DATA_MEDIATYPES`] qualify, and only in
+/// their `;base64,` form.
+fn is_inert_base64_image(url: &str) -> bool {
+    base64_data_mediatype(url)
+        .is_some_and(|mediatype| INERT_IMAGE_DATA_MEDIATYPES.contains(&mediatype.as_str()))
 }
 
 /// ASCII whitespace and control characters, which browsers strip from URLs.

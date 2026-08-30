@@ -2,7 +2,12 @@
 	version: 1,
 	settings: (
 		heading_too_long_threshold: 120,
-		unsafe_protocols: ["javascript", "data"],
+		// Schemes that carry active content. Matches the set used by cmark,
+		// comrak, goldmark and markdown-it, which arrived at it independently,
+		// and the renderer's `logic::url_scheme::DANGEROUS_SCHEMES` — kept in
+		// step by a test, since the renderer cannot read this catalog (it is
+		// behind the `intelligence-diagnostics` feature).
+		unsafe_protocols: ["javascript", "vbscript", "file", "data"],
 		// Image mediatypes whose `;base64,` data URIs cannot execute, and so are
 		// exempt from the unsafe-protocol check on an image source. `image/svg+xml`
 		// is deliberately absent: it is script-capable in WebKit6 and WebView2.
