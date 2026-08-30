@@ -82,6 +82,31 @@ if [[ -z "$BASELINE" || -z "$CURRENT" ]]; then
   exit 1
 fi
 
+# Check the files exist before building. A baseline is not shipped -- it is
+# captured locally from a run you trust -- so a missing one is the expected
+# first-time experience, and deserves a better message than a serde error
+# after a release build.
+if [[ ! -f "$BASELINE" ]]; then
+  echo "ERROR: baseline not found: $BASELINE" >&2
+  echo >&2
+  echo "Baselines are generated, not checked in (see tools/perf-lab/output/.gitignore)." >&2
+  echo "Capture one from a run you trust:" >&2
+  echo >&2
+  echo "  ./tools/perf-lab/scripts/run-bench.sh --release --mode e2e --iterations 30" >&2
+  echo "  cp \"\$(ls -1t tools/perf-lab/output/summary/bench-*.json | head -1)\" \\" >&2
+  echo "     $BASELINE" >&2
+  echo >&2
+  echo "Existing local baselines:" >&2
+  ls -1 tools/perf-lab/output/baseline/*.json 2>/dev/null | sed 's/^/  /' >&2 || echo "  (none)" >&2
+  exit 1
+fi
+
+if [[ ! -f "$CURRENT" ]]; then
+  echo "ERROR: current run not found: $CURRENT" >&2
+  echo "Produce one with: ./tools/perf-lab/scripts/run-bench.sh --release --mode e2e" >&2
+  exit 1
+fi
+
 MODE_FLAG=""
 [[ -n "$MODE" ]] && MODE_FLAG="--mode $MODE"
 

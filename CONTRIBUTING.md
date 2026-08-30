@@ -48,6 +48,10 @@ cargo test --locked
 ## Coding rules
 
 - **No panics** — use `?`, `match`, or `.ok_or(...)` instead of `unwrap()`.
+- **Errors are `MarcoError`**, never `Box<dyn std::error::Error>` — the latter is not `Send + Sync`,
+  so it cannot cross an `.await` and `?` will not compile against `anyhow::Result`. A new failure
+  mode is a new `#[non_exhaustive]` variant in `src/error.rs`, carrying owned data only: no `nom`,
+  `katex-rs` or `mermaid-rs-renderer` types.
 - **Borrow over clone** — public APIs use `&str` / `&Document`, not owned values.
 - **No `unsafe`** unless documented and tested.
 - **No logging to stdout** — use the `log` crate or `SimpleFileLogger`.
@@ -56,7 +60,10 @@ cargo test --locked
 ## Testing
 
 - Unit tests live next to the code: `#[cfg(test)] mod tests { ... }`
-- Integration tests in `tests/` exercise the public API only
+- Integration tests in `tests/` exercise the public API only — and a test that needs crate
+  internals belongs *inside* the crate, not behind a widened API
+- Conformance and fixture suites render with `RenderOptions::commonmark()`, never `::default()` —
+  the default escapes raw HTML, so measuring conformance under it measures the policy, not the parser
 - New grammar rule → needs both unit test **and** integration test
 - Bug fix → needs a regression test that fails before, passes after
 

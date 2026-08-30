@@ -71,6 +71,16 @@ All runtime-visible identifiers must follow these rules for consistency.
   - `marco_headerless_table.rs` → `MarcoHeaderlessTableBlock`, `marco_headerless_table()`
 - File-naming prefixes: `cm_*` (CommonMark), `gfm_*` (GFM), `marco_*` (Marco extensions).
 - Top-level public API from `src/lib.rs` uses neutral names (`parse`, `render`, `RenderOptions`, …).
+- **The public API is `src/lib.rs` plus the `parser`, `render`, `intelligence` and `logic` module
+  roots.** Their submodules are `pub(crate)`; consumers reach everything through a root re-export.
+  Two rules follow:
+  - **Keep the re-export set closed.** A `pub` type in a private module compiles fine while being
+    unnameable — a consumer can read `node.span` but cannot write `fn f(s: Span)`. Every type
+    reachable from a public type must itself be re-exported. `tests/public_api_closure_it.rs` fails
+    to compile if you forget.
+  - **Never expose a foreign type.** `GrammarSpan` is `nom_locate::LocatedSpan`; exposing it would
+    make swapping the parser library a breaking change. `katex-rs` and `mermaid-rs-renderer` types
+    would additionally make the public API feature-dependent.
 
 ### CSS classes
 

@@ -6,3 +6,14 @@
 
 # Keep sentinel files
 !.gitkeep
+
+# The workload manifest is reference data, not a run artifact: `perf-lab.ron`
+# points `baseline_manifest` at it, and without it every clone warns
+# "baseline manifest configured but missing" with no way to fix it short of
+# regenerating one locally. Track it so manifest-drift detection works out of
+# the box.
+!baseline/workload-manifest-v1.json
+
+# Timings are machine-specific and belong to whoever measured them, so
+# baselines stay untracked. Capture one with:
+#   cp "$(ls -1t summary/bench-*.json | head -1)" baseline/bench-baseline.json

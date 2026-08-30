@@ -38,6 +38,18 @@ pub fn descriptors() -> Vec<EngineDescriptor> {
             notes: "marco-core with track_positions=false, parse_math=false, parse_diagrams=false",
         },
         EngineDescriptor {
+            id: "marco-core-safe",
+            implemented: true,
+            notes: "marco-core with the 2.0 default policy (escape raw HTML, block dangerous URL \
+                    schemes); render/e2e only",
+        },
+        EngineDescriptor {
+            id: "marco-core-untrusted",
+            implemented: true,
+            notes: "marco-core with RenderOptions::untrusted() (escape raw HTML, safe URL schemes \
+                    only); render/e2e only",
+        },
+        EngineDescriptor {
             id: "pulldown-cmark",
             implemented: true,
             notes: "parse/render/e2e modes; intelligence unsupported",
@@ -64,6 +76,8 @@ pub fn get_adapter(engine: &str) -> Result<Box<dyn EngineAdapter>, String> {
     match engine {
         "marco-core" => Ok(Box::new(marco_core::MarcoCoreAdapter::default())),
         "marco-core-raw" => Ok(Box::new(marco_core::MarcoCoreRawAdapter::default())),
+        "marco-core-safe" => Ok(Box::new(marco_core::MarcoCorePolicyAdapter::safe())),
+        "marco-core-untrusted" => Ok(Box::new(marco_core::MarcoCorePolicyAdapter::untrusted())),
         "pulldown-cmark" => Ok(Box::new(pulldown_cmark::PulldownCmarkAdapter)),
         "comrak" => Ok(Box::new(comrak::ComrakAdapter)),
         "markdown-rs" => Ok(Box::new(markdown_rs::MarkdownRsAdapter)),

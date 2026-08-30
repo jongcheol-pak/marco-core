@@ -53,6 +53,14 @@ as the diff engine — see the Quick start example above.
 | `markdown-rs` | placeholder |
 | `markdown-it-rs` | placeholder |
 
+The `marco-core` adapters render with `RenderOptions::commonmark()`, not
+`::default()`. The default applies marco-core's HTML and URL security policies,
+so measuring it would fold escaping and scheme classification into the render
+number — and would not be comparable with `pulldown-cmark`, which does no such
+filtering. It would also silently break comparison against any baseline captured
+before that default changed. Policy cost is worth measuring, but as its own
+mode rather than mixed into this one.
+
 ## Build
 
 ```bash

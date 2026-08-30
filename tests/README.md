@@ -1,11 +1,20 @@
 # tests
 
 Integration tests for `marco-core`. Each `.rs` file is a separate `cargo test`
-binary that exercises only the public API re-exported from `lib.rs`.
+binary, which is the point: they compile as their own crates, so they see
+exactly the public API a crates.io consumer sees — the crate root plus the
+`parser`, `render`, `intelligence` and `logic` module roots.
 
-See [`Documentation/testing.md`](../Documentation/testing.md) for:
+**A test that needs crate internals does not belong here.** Put it in the module
+it tests, as a unit test. Widening the API to let an integration test reach
+something is the wrong trade: `src/parser/inlines/parallel_tests.rs` lives inside
+the crate because it needs `GrammarSpan`, and re-exporting a `nom` type would
+have made swapping the parser library a breaking change.
 
-- The full test inventory (93 integration tests across 23 files)
+See [`Documentation/TESTING.md`](../Documentation/TESTING.md) for:
+
+- The full test inventory (124 integration tests across 26 files)
+- The three tests that guard a class of mistake rather than a behaviour
 - CommonMark conformance numbers and how to interpret them
 - Regression-guard thresholds and strict/verbose modes
 - Conventions for adding new tests

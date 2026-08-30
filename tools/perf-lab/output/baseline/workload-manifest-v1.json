@@ -1,0 +1,100 @@
+[
+  {
+    "id": "fixture:large:code-heavy.md",
+    "profile": "marco-extensions",
+    "source_path": "/home/ranrar/Code/projects/marco-core/tools/perf-lab/fixtures/large/code-heavy.md",
+    "bytes": 67708,
+    "sha256": "f5d2cf4594187af378c4b311b64101f32195be778d6dff3a1e2233c6d41660ba"
+  },
+  {
+    "id": "fixture:large:generated-synthetic.md",
+    "profile": "marco-extensions",
+    "source_path": "/home/ranrar/Code/projects/marco-core/tools/perf-lab/fixtures/large/generated-synthetic.md",
+    "bytes": 36993,
+    "sha256": "e0ed1ab57e2cad269564b15fb78ba21bb41a94faa4db06f8ac8cd4857f42fbfa"
+  },
+  {
+    "id": "fixture:large:paragraph-heavy.md",
+    "profile": "marco-extensions",
+    "source_path": "/home/ranrar/Code/projects/marco-core/tools/perf-lab/fixtures/large/paragraph-heavy.md",
+    "bytes": 143122,
+    "sha256": "497ac64362b8112a21f2e476e58a33740cb739edf65f636821996997d27295f1"
+  },
+  {
+    "id": "fixture:medium:generated-synthetic.md",
+    "profile": "marco-extensions",
+    "source_path": "/home/ranrar/Code/projects/marco-core/tools/perf-lab/fixtures/medium/generated-synthetic.md",
+    "bytes": 1925,
+    "sha256": "48f770b654256311fd28e041f369a413945a77409d59bc73afde3d3e71788570"
+  },
+  {
+    "id": "fixture:pathological:generated-synthetic.md",
+    "profile": "marco-extensions",
+    "source_path": "/home/ranrar/Code/projects/marco-core/tools/perf-lab/fixtures/pathological/generated-synthetic.md",
+    "bytes": 6053,
+    "sha256": "c4a5ec757fc846fab10473c2251c345b43b01611a2e62781b167ff34380f276b"
+  },
+  {
+    "id": "fixture:pathological:star-pyramid.md",
+    "profile": "marco-extensions",
+    "source_path": "/home/ranrar/Code/projects/marco-core/tools/perf-lab/fixtures/pathological/star-pyramid.md",
+    "bytes": 209792,
+    "sha256": "a537ee10219ea51ed0db0318c725ed0b037a86c3d3200baced47833df5bdbca0"
+  },
+  {
+    "id": "fixture:pathological:unbalanced-brackets.md",
+    "profile": "marco-extensions",
+    "source_path": "/home/ranrar/Code/projects/marco-core/tools/perf-lab/fixtures/pathological/unbalanced-brackets.md",
+    "bytes": 13333,
+    "sha256": "23920d4dd4e6a4e25120c778c94ece6983eb4b65e57c475a8140dda18ae817c4"
+  },
+  {
+    "id": "fixture:small:generated-synthetic.md",
+    "profile": "marco-extensions",
+    "source_path": "/home/ranrar/Code/projects/marco-core/tools/perf-lab/fixtures/small/generated-synthetic.md",
+    "bytes": 75,
+    "sha256": "ee93f3a251a2f369cf849695920cbb5094a66a4ec5597bda08ae83b5b0e58dc6"
+  },
+  {
+    "id": "spec:combos",
+    "profile": "marco-extensions",
+    "source_path": "/home/ranrar/Code/projects/marco-core/tools/spec/combos.json",
+    "bytes": 21736,
+    "sha256": "1cce922d4eb232a540b5c7ad93444a756add86d209035453c96f0e042d6c0079"
+  },
+  {
+    "id": "spec:commonmark",
+    "profile": "commonmark-core",
+    "source_path": "/home/ranrar/Code/projects/marco-core/tools/spec/commonmark.json",
+    "bytes": 140743,
+    "sha256": "6ef45d90fde94467901ab7fa54cc902a7192261578aebb22f6aa441d47da799c"
+  },
+  {
+    "id": "spec:diagram",
+    "profile": "marco-extensions",
+    "source_path": "/home/ranrar/Code/projects/marco-core/tools/spec/diagram.json",
+    "bytes": 5233,
+    "sha256": "f08582df7bfa27226ee2b55fec629e415d193835dc8bb7ed592fef41ce177d1f"
+  },
+  {
+    "id": "spec:gfm",
+    "profile": "gfm-core",
+    "source_path": "/home/ranrar/Code/projects/marco-core/tools/spec/gfm.json",
+    "bytes": 6171,
+    "sha256": "c1902d98bc5cc4506a2cc8f5cdb2dd7ae83e4fbc4131fc30493bdd090758f4f8"
+  },
+  {
+    "id": "spec:marco",
+    "profile": "marco-extensions",
+    "source_path": "/home/ranrar/Code/projects/marco-core/tools/spec/marco.json",
+    "bytes": 31577,
+    "sha256": "c35f4d263013d7e7cdfd17075c189677e9a4d39b2bfceb1869e3323e7f39c6da"
+  },
+  {
+    "id": "spec:math",
+    "profile": "marco-extensions",
+    "source_path": "/home/ranrar/Code/projects/marco-core/tools/spec/math.json",
+    "bytes": 4267,
+    "sha256": "ceb71642e6e43434151476eb1eed5f84cf1ae1b9f012d71ce008c0f2efe6d392"
+  }
+]

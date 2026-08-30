@@ -20,11 +20,16 @@ cargo bench
 # Stress test
 ./tools/perf-lab/scripts/run-stress.sh --release --mode e2e --loops 100
 
-# Regression gate
+# Regression gate — needs a baseline you captured first, see below
 ./tools/perf-lab/scripts/run-regression.sh --release \
   --baseline tools/perf-lab/output/baseline/bench-baseline.json \
   --current  tools/perf-lab/output/summary/bench-<timestamp>.json
 ```
+
+**`bench-baseline.json` does not exist until you make it.** Timings are
+machine-specific, so baselines are gitignored and never shipped — a fresh clone
+has none. Capture one before the regression gate is usable; the script prints
+the exact command if you forget.
 
 ## Root-level `cargo bench`
 
@@ -237,7 +242,8 @@ to produce Markdown summary.
 ### Typical workflow
 
 ```bash
-# Capture a baseline (after a release or initial setup)
+# Capture a baseline — required once before any regression comparison, since
+# baselines are gitignored and a fresh clone has none
 ./tools/perf-lab/scripts/run-bench.sh --release --mode e2e --iterations 30
 cp $(ls -1t tools/perf-lab/output/summary/bench-*.json | head -1) \
    tools/perf-lab/output/baseline/bench-baseline.json

@@ -39,7 +39,12 @@ fn render_benches(c: &mut Criterion) {
     let mut group = c.benchmark_group("render");
     for (name, input) in [("small", SMALL), ("medium", MEDIUM), ("large", LARGE)] {
         let doc = marco_core::parse(input).expect("parse failed");
-        let options = marco_core::RenderOptions::default();
+        // `commonmark()`, not `default()`: the default applies the security
+        // policies, so benchmarking it would measure escaping and URL
+        // classification alongside rendering — and would silently stop being
+        // comparable with every result recorded before the default flipped.
+        // Policy cost belongs in its own benchmark, not folded into this one.
+        let options = marco_core::RenderOptions::commonmark();
         group.bench_function(name, |b| {
             b.iter(|| marco_core::render(black_box(&doc), &options).expect("render failed"));
         });
@@ -49,7 +54,9 @@ fn render_benches(c: &mut Criterion) {
 
 fn e2e_benches(c: &mut Criterion) {
     let mut group = c.benchmark_group("e2e");
-    let options = marco_core::RenderOptions::default();
+    // See `render_benches`: `commonmark()` keeps this comparable across the
+    // default flip.
+    let options = marco_core::RenderOptions::commonmark();
     for (name, input) in [("small", SMALL), ("medium", MEDIUM), ("large", LARGE)] {
         group.bench_function(name, |b| {
             b.iter(|| {

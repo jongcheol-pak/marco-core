@@ -22,22 +22,50 @@ MARCO_SPEC_VERBOSE=1 cargo test --test commonmark_spec_it --locked
 
 | Layer | Location | What it tests |
 |---|---|---|
-| Unit / smoke | `src/**/mod.rs` (`#[cfg(test)]`) | Module internals (518 tests) |
-| Integration | `tests/*.rs` | Public API surface (103 tests across 23 files, default features) |
+| Unit / smoke | `src/**/*.rs` (`#[cfg(test)]`) | Module internals (578 tests) |
+| Integration | `tests/*.rs` | Public API surface (124 tests across 26 files, default features) |
 | Spec conformance | `tests/commonmark_spec_it.rs` | CommonMark + extensions (652 examples + 30+ extension cases) |
 | Extension specs | `tools/tests/extension_spec_it.rs` | GFM / Marco / Math / Diagram cases (5 suites) |
-| Doc tests | `///` comments | Rustdoc examples (31 run, 0 `no_run`/`ignore`) |
+| Doc tests | `///` comments | Rustdoc examples (19 run, 12 `ignore`) |
 
-**Total: 657 `cargo test` tests** (518 unit + 103 integration + 5 extension-spec +
-31 doc), all passing — plus the 652 CommonMark spec examples and extension
-fixture cases checked *within* those test functions (not separate `cargo
-test` tests, see "CommonMark conformance" below). One integration file,
-`tests/parallel_parse_it.rs` (9 tests), plus 4 unit tests colocated in
-`src/parser/blocks/parallel_inline.rs`, are gated `#![cfg(feature =
-"parallel-parse")]`, which is on by default — the 103/657 figures above
-already include them. Building with `--no-default-features` and
-re-enabling every default feature except `parallel-render`/`parallel-parse`
-drops the total to 644.
+**Total: 726 `cargo test` tests** (578 unit + 124 integration + 5 extension-spec
++ 19 doc), all passing — plus the 652 CommonMark spec examples and extension
+fixture cases checked *within* those test functions (not separate `cargo test`
+tests, see "CommonMark conformance" below).
+
+The `parallel-parse` tests are 9 unit tests in
+`src/parser/inlines/parallel_tests.rs` plus 4 in
+`src/parser/blocks/parallel_inline.rs`, gated on the feature, which is on by
+default. They are unit rather than integration tests deliberately: they call
+`parse_inlines_from_span`, whose `GrammarSpan` argument is a `nom_locate` type
+that must not appear in the public API.
+
+The 12 `ignore` doc tests are examples on now-private block and inline parsers.
+They demonstrate calls that were only ever possible while `parser::shared` was
+public, since those functions take a `GrammarSpan`. They remain as illustrations
+for crate developers; the modules' unit tests cover the behaviour.
+
+### Three tests that guard a class of mistake
+
+Most tests here check a behaviour. These three check that a *kind* of regression
+cannot happen, and are worth understanding before changing:
+
+| Test | Guards |
+|---|---|
+| `render_byte_identity_it.rs` | `RenderOptions::commonmark()` output, against a committed baseline of 848 fixtures. Regenerate with `MARCO_UPDATE_BASELINE=1` **only** for an intended render change, and read the diff — every changed line is a change in what consumers receive |
+| `public_api_closure_it.rs` | a public type that is reachable but unnameable. Its `NodeKind` match is exhaustive with no `_` arm on purpose: adding a variant breaks the build until someone writes an arm, which is when they notice its payload types |
+| `render_security_it.rs` | the six known XSS vectors, and exact output for each `HtmlPolicy`/`UrlPolicy` |
+
+**Conformance and fixture suites must render with `RenderOptions::commonmark()`,
+never `::default()`.** The default escapes raw HTML, and the CommonMark spec is
+full of raw-HTML examples — measuring conformance under the safe policy measures
+the policy, not the parser. It dropped the suite from 357 to 314 when the
+default flipped.
+
+**Assert on the absence of a live element, not of a payload substring.** Correct
+escaped output legitimately contains the text `onerror`; showing the author what
+they wrote is the point of `HtmlPolicy::Escape`. So `!html.contains("onerror")`
+fails on *correct* output. Check for `<img`, `<a `, `href=` instead.
 
 ## Spec fixtures
 
@@ -109,9 +137,7 @@ the constant — never lower it without a documented reason.
 
 ## Test inventory
 
-**Integration tests:** 103 total across 23 files under `tests/` (default
-features, which include `parallel-parse`; drops to 94 under
-`--no-default-features`, see note above):
+**Integration tests:** 124 total across 26 files under `tests/`:
 
 | File | Count | Coverage |
 |---|---:|---|
@@ -135,8 +161,11 @@ features, which include `parallel-parse`; drops to 94 under
 | `marco_inline_footnotes_it.rs` | 6 | Inline footnotes |
 | `marco_sliders_it.rs` | 3 | Slider blocks (`@slidestart` / `@slideend`) |
 | `marco_tab_blocks_it.rs` | 3 | Tab blocks (`:::tab` / `@tab`) |
-| `parallel_parse_it.rs` | 9 | Deferred inline-parse parity (skipped under `--no-default-features`) |
 | `platform_mentions_it.rs` | 3 | Platform mentions (`@user[github]`) |
+| `public_api_closure_it.rs` | 4 | Every public type is nameable from the crate root |
+| `render_byte_identity_it.rs` | 3 | `commonmark()` output vs a committed 848-fixture baseline |
+| `render_security_it.rs` | 18 | XSS vectors and exact output per `HtmlPolicy` / `UrlPolicy` |
+| `error_it.rs` | 5 | `MarcoError` is `Send + Sync`; the depth limit errors rather than truncating |
 | `sanitize_input_it.rs` | 4 | UTF-8 sanitization |
 
 **Extension spec tests:** 5 suites in `tools/tests/extension_spec_it.rs`:
