@@ -5,6 +5,102 @@ This project follows **Semantic Versioning** and uses the **Keep a Changelog** f
 
 Version scheme note: `marco-core` and `marco-shared` follow independent semver from the application binaries (marco/polo). The library tracks API stability for crates.io consumers; breaking API changes increment the major version.
 
+## [Unreleased]
+
+Work towards **server-rendering**: making `marco-core` usable from a Rust web
+backend that renders Markdown written by one user and displays it to another.
+Until now the crate targeted a desktop editor, where the document author and the
+document reader are the same person and raw HTML passing through is correct.
+They are not the same person on a server.
+
+This is a **breaking** release. Each change below carries its migration.
+
+### Added
+
+#### `HtmlPolicy` and `UrlPolicy` — render-time security policies
+
+`RenderOptions` now carries two policies. `HtmlPolicy` governs author-written
+raw HTML (`Allow` / `Escape` / `Strip`); `UrlPolicy` governs link and image
+URLs (`Allow` / `BlockDangerous` / `SafeSchemesOnly`). Both are
+`#[non_exhaustive]`, so future policies are a minor bump.
+
+Three constructors name the useful combinations, so a consumer never has to
+reason about which pairing constitutes a security boundary:
+
+| Constructor | `html` | `urls` | For |
+|---|---|---|---|
+| `RenderOptions::commonmark()` | `Allow` | `Allow` | trusted single-author input; spec conformance |
+| `RenderOptions::new()` / `default()` | `Escape` | `BlockDangerous` | a desktop editor |
+| `RenderOptions::untrusted()` | `Escape` | `SafeSchemesOnly` | a server rendering one user's Markdown to other readers |
+
+`RenderOptions::untrusted()` may gain further protections in future minor
+versions without any consumer changing a line — which is the point of having it
+rather than a documented combination of flags.
+
+#### `logic::url_scheme` — URL scheme classification
+
+The normalisation and classification shared by the renderer and the diagnostics
+layer. One `scheme_of` normaliser — which strips ASCII whitespace and control
+characters, resolves `%XX` escapes and HTML character references, lowercases,
+and locates the true scheme separator — and two predicates over it.
+
+The ordering matters more than either policy: every published bypass of a
+Markdown URL filter has been a normalisation failure rather than a policy
+failure. `goldmark` fell to `javascript&colon;alert()` because it read the
+scheme before entities were resolved.
+
+### Changed
+
+#### `RenderOptions` is `#[non_exhaustive]`
+
+Struct-literal construction from outside the crate no longer compiles, including
+the `..RenderOptions::default()` form. Use `RenderOptions::new()`,
+`::commonmark()` or `::untrusted()` with the `with_*` builders:
+
+```rust
+// before
+let opts = RenderOptions { syntax_highlighting: true, ..RenderOptions::default() };
+
+// after
+let opts = RenderOptions::commonmark().with_syntax_highlighting(true);
+```
+
+Configuration serialized by 1.x still loads: both new fields are
+`#[serde(default)]`, and absent data deserializes to the safe policies.
+
+#### `render_mermaid_diagram` takes an `allow_interaction` argument
+
+`render_mermaid_diagram(source, theme)` becomes
+`render_mermaid_diagram(source, theme, allow_interaction)`. Pass `true` for 1.x
+behaviour.
+
+### Security
+
+#### Mermaid `click` directives could inject a `javascript:` anchor
+
+A `click` or `link` directive made `mermaid-rs-renderer` emit
+`<a href="javascript:alert(1)" xlink:href="…">` into the SVG, which this crate
+spliced into the rendered page verbatim. Any author who could write a diagram
+could run script in the browser of anyone who read it. `mermaid-rs-renderer`
+0.3 exposes no option to disable this; its `RenderOptions` carries only a theme
+and a layout.
+
+With `allow_interaction: false`, interaction directives are removed from the
+diagram source before rendering, and the resulting SVG is checked for stray
+anchors — a diagram that still carries one is rejected so the caller can fall
+back to a code block.
+
+The directives are stripped from the *source* rather than filtered out of the
+rendered SVG deliberately: rewriting the output would mean re-parsing SVG whose
+shape this crate does not control, and filtering the URL in place would mean
+duplicating upstream's private tokenizer — a parser differential, which is the
+very thing that produces bypasses. Matching the directive *line* keys on the
+same two prefixes upstream keys on, so the two cannot disagree.
+
+The cost, accepted deliberately: a legitimate `click A "https://example.com"` is
+dropped too. Diagram links are rare, and the alternative is a URL filter that
+can drift out of step with the parser it guards.
+
 ## [1.3.3] - 2026-08-21
 
 ### Added

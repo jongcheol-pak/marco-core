@@ -47,6 +47,10 @@ pub use parser::{Document, Node, NodeKind};
 pub use render::warm_render_thread_pool;
 /// Render a parsed [`Document`] into HTML using [`RenderOptions`].
 pub use render::{render, RenderOptions};
+/// Render-time security policies. [`HtmlPolicy`] governs author-written raw
+/// HTML, [`UrlPolicy`] governs link and image URLs; both are carried on
+/// [`RenderOptions`].
+pub use render::{HtmlPolicy, UrlPolicy};
 
 /// UTF-8 sanitization API and related types.
 pub use logic::utf8::{sanitize_input, sanitize_input_with_stats, InputSource, SanitizeStats};

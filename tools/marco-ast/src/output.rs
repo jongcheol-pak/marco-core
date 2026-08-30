@@ -583,10 +583,10 @@ fn run_html_mode_inner(
     args: &Args,
     include_extra_sections: bool,
 ) -> RunPayload {
-    let options = RenderOptions {
-        syntax_highlighting: args.syntax,
-        ..RenderOptions::default()
-    };
+    // `commonmark()` rather than `default()`: this tool exists to show what the
+    // renderer does, so it must not silently apply a security policy the user
+    // did not ask for. Matches marco-core 1.x output.
+    let options = RenderOptions::commonmark().with_syntax_highlighting(args.syntax);
     let render_started = Instant::now();
     match marco_core::render(doc, &options) {
         Ok(html) => {
@@ -760,10 +760,7 @@ pub fn run_json_mode(
         let started = Instant::now();
         match marco_core::render(
             doc,
-            &RenderOptions {
-                syntax_highlighting: args.syntax,
-                ..RenderOptions::default()
-            },
+            &RenderOptions::commonmark().with_syntax_highlighting(args.syntax),
         ) {
             Ok(html) => (Some(html), Some(started.elapsed().as_micros()), None),
             Err(err) => (None, Some(started.elapsed().as_micros()), Some(err.to_string())),
