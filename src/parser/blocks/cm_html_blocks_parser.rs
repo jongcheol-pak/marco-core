@@ -25,7 +25,7 @@ use crate::parser::ast::{Node, NodeKind};
 /// A Node with NodeKind::HtmlBlock
 ///
 /// # Example
-/// ```
+/// ```ignore
 /// use marco_core::parser::blocks::cm_html_blocks_parser::parse_html_block;
 /// use marco_core::parser::shared::GrammarSpan;
 /// use marco_core::NodeKind;

@@ -231,6 +231,43 @@ fn every_variant_payload_is_nameable() {
     }
 }
 
+/// Every item a consumer currently reaches by naming a *submodule* must also be
+/// reachable from its module root.
+///
+/// Submodules are being made private: the public contract is the crate root
+/// plus the `parser`, `render`, `intelligence` and `logic` module roots.
+/// Re-exporting from a private module is legal, so a path that goes *through* a
+/// root keeps working — but a path that reaches *into* a submodule does not.
+/// This pins the replacements, so they exist before the old routes disappear.
+#[test]
+fn module_root_paths_cover_what_submodule_paths_reached() {
+    // Was marco_core::parser::position::{Span, Position}
+    let _: fn(&marco_core::Span) = |_| {};
+    let _: fn(&marco_core::Position) = |_| {};
+
+    // Was marco_core::parser::ast::NodeKind
+    let _: fn(&marco_core::NodeKind) = |_| {};
+
+    // Was marco_core::intelligence::toc::{TocEntry, extract_toc}
+    let _: fn(&marco_core::Document) -> Vec<marco_core::intelligence::TocEntry> =
+        marco_core::intelligence::extract_toc;
+
+    // Was marco_core::render::plarform_mentions::{profile_url, supported_platforms}
+    let _: fn(&str, &str) -> Option<String> = marco_core::render::profile_url;
+    let _: fn() -> &'static [marco_core::render::MentionPlatform] =
+        marco_core::render::supported_platforms;
+
+    // Was marco_core::render::code_languages::KNOWN_CODE_LANGUAGES
+    let _: &[marco_core::render::CodeLanguage] = marco_core::render::KNOWN_CODE_LANGUAGES;
+
+    // Was marco_core::render::diagram::render_mermaid_diagram
+    #[cfg(feature = "render-diagrams")]
+    {
+        let _: fn(&str, &str, bool) -> Result<String, marco_core::MarcoError> =
+            marco_core::render::render_mermaid_diagram;
+    }
+}
+
 /// The render path must be usable from the crate root alone.
 #[test]
 fn rendering_is_reachable_from_the_crate_root() {

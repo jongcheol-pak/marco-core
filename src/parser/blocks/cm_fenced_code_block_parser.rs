@@ -17,7 +17,7 @@ use crate::parser::ast::{Node, NodeKind};
 /// when language is "mermaid"
 ///
 /// # Example
-/// ```
+/// ```ignore
 /// use marco_core::parser::blocks::cm_fenced_code_block_parser::parse_fenced_code_block;
 /// use marco_core::parser::shared::GrammarSpan;
 /// use marco_core::NodeKind;

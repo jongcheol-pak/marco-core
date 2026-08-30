@@ -131,15 +131,6 @@ impl Span {
     }
 }
 
-/// Convenience helper: compute the absolute byte offset of the start of the
-/// given span's starting line.
-///
-/// This is exposed as a free function to simplify callers that don't have a
-/// `Span` method in scope or prefer a function name matching the refactor plan.
-pub fn compute_line_start_offset(span: &Span) -> usize {
-    span.start_line_offset()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

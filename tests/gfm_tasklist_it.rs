@@ -1,4 +1,4 @@
-use marco_core::parser::ast::NodeKind;
+use marco_core::NodeKind;
 
 #[test]
 fn test_gfm_task_list_items_parse_with_task_checkbox_marker() {

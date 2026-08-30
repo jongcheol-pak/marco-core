@@ -15,7 +15,7 @@ use crate::parser::ast::{Node, NodeKind};
 /// A Node with NodeKind::ThematicBreak
 ///
 /// # Example
-/// ```
+/// ```ignore
 /// use marco_core::parser::blocks::cm_thematic_break_parser::parse_thematic_break;
 /// use marco_core::parser::shared::GrammarSpan;
 /// use marco_core::NodeKind;

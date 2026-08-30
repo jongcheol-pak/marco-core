@@ -1,4 +1,4 @@
-use marco_core::parser::ast::NodeKind;
+use marco_core::NodeKind;
 
 fn collect_links<'a>(
     node: &'a marco_core::parser::Node,

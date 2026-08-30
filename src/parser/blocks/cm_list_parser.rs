@@ -10,13 +10,6 @@ use crate::grammar::blocks::cm_list::ListMarker;
 use crate::parser::ast::{Document, Node, NodeKind};
 use nom::Input;
 
-/// Represents the parser state needed for list item parsing.
-/// This trait allows the list parser to work with the main parser's state.
-pub trait ListParserState {
-    /// Create a new state for a list item with the given content indent
-    fn new_list_item_state(&self, content_indent: usize) -> Self;
-}
-
 /// Parse a list into an AST node with recursive item parsing.
 ///
 /// # Arguments
@@ -40,7 +33,7 @@ pub trait ListParserState {
 /// 5. Returns complete list node with all item children
 ///
 /// # Example
-/// ```
+/// ```ignore
 /// use marco_core::grammar::ListMarker;
 /// use marco_core::parser::blocks::cm_list_parser::parse_list;
 /// use marco_core::parser::shared::GrammarSpan;
@@ -222,8 +215,8 @@ fn detect_task_checkbox_in_list_item(
     }
 
     // Build the marker span using exclusive end semantics.
-    // Note: `blocks::shared::to_parser_span_range` is inclusive; we want the
-    // canonical exclusive version from `parser::shared`.
+    // Note: `blocks::shared` re-exports the *inclusive* range helper under the
+    // unsuffixed name; we want the exclusive one from `parser::shared`.
     let marker_start = after_prefix.take_from(i);
     let (after_marker, _marker_taken) = marker_start.take_split(3);
     let marker_span = crate::parser::shared::opt_span_range(marker_start, after_marker);

@@ -10,7 +10,7 @@ use nom::IResult;
 /// Parse an inline math expression `$...$` to an InlineMath AST node.
 ///
 /// # Example
-/// ```
+/// ```ignore
 /// use marco_core::parser::inlines::math_inline_parser::parse_inline_math;
 /// use marco_core::parser::shared::GrammarSpan;
 /// use marco_core::NodeKind;

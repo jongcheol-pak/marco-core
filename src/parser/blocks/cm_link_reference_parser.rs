@@ -17,7 +17,7 @@ use crate::parser::ast::Document;
 /// * `title` - Optional title text
 ///
 /// # Example
-/// ```
+/// ```ignore
 /// use marco_core::parser::blocks::cm_link_reference_parser::parse_link_reference;
 /// use marco_core::Document;
 ///

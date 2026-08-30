@@ -4,17 +4,24 @@
 
 use crate::error::MarcoError;
 
+// The submodules are private: the public contract is this module's root plus
+// the crate root. Everything a consumer needs is re-exported below, so a path
+// through `parser::` keeps working while `parser::ast::…` and
+// `parser::shared::…` no longer resolve. `shared` in particular must stay
+// private — it exposes `GrammarSpan`, a `nom_locate` type, and making that
+// public would turn "which parser library we use" into a semver promise.
+
 /// AST node and document types.
-pub mod ast;
+pub(crate) mod ast;
 /// Position and span utilities.
-pub mod position;
+pub(crate) mod position;
 /// Shared parser span conversion helpers.
-pub mod shared;
+pub(crate) mod shared;
 
 /// Block-level parser modules.
-pub mod blocks;
+pub(crate) mod blocks;
 /// Inline-level parser modules.
-pub mod inlines;
+pub(crate) mod inlines;
 
 /// Re-export AST types.
 pub use ast::*;

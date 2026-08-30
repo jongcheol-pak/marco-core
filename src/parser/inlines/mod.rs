@@ -13,6 +13,12 @@ pub mod shared;
 // Emphasis/strong delimiter-stack resolution (CommonMark spec 6.2, Appendix A).
 mod emphasis;
 
+// Regression tests for the `parallel-parse` feature. A unit test rather than an
+// integration test because it calls `parse_inlines_from_span`, whose
+// `GrammarSpan` argument is a `nom` type that must not reach the public API.
+#[cfg(all(test, feature = "parallel-parse"))]
+mod parallel_tests;
+
 // Individual inline parser modules
 pub mod cm_autolink_parser;
 pub mod cm_backslash_escape_parser;

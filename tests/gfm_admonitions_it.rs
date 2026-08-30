@@ -1,5 +1,5 @@
-use marco_core::parser::ast::{AdmonitionStyle, NodeKind};
 use marco_core::parser::AdmonitionKind;
+use marco_core::{AdmonitionStyle, NodeKind};
 
 fn find_first_kind(
     node: &marco_core::parser::Node,

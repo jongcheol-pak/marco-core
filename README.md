@@ -5,7 +5,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Rust 1.94.1](https://img.shields.io/badge/rust-1.94.1-orange.svg)](https://www.rust-lang.org)
 
-A Rust Markdown library for applications that need **editor-quality accuracy** — parse, render, and extract intelligence from Markdown. Safe to point at Markdown you did not write: rendering is governed by [explicit HTML and URL policies](#rendering-markdown-you-did-not-write).
+A Rust Markdown library for applications that need **editor-quality accuracy** — parse, render, and extract intelligence from Markdown.
+
+Usable in two places, which is the point of the policies below: inside a desktop editor rendering its own user's documents, and [inside a web backend](#as-a-web-backend) rendering Markdown one user wrote for another user to read. The second case is what raw HTML makes dangerous, so rendering is governed by [explicit HTML and URL policies](#rendering-markdown-you-did-not-write) rather than a single behaviour.
 
 You may be looking for:
 
@@ -91,6 +93,33 @@ For finer control, `HtmlPolicy` is `Allow` / `Escape` / `Strip` and `UrlPolicy`
 is `Allow` / `BlockDangerous` / `SafeSchemesOnly`, set with `.with_html(…)` and
 `.with_urls(…)`.
 
+### As a web backend
+
+Everything needed to render Markdown on a server and send it to a browser:
+`RenderOptions::untrusted()` for the policy, and a `Send + Sync` error so `?`
+works in an async handler.
+
+```rust
+use marco_core::{parse, render, MarcoError, RenderOptions};
+
+async fn render_comment(body: String) -> Result<String, MarcoError> {
+    let doc = parse(&body)?;
+    render(&doc, &RenderOptions::untrusted())
+}
+```
+
+`render` returns a **fragment**, not a page — put it inside your own template,
+under your own Content-Security-Policy. (`wrap_preview_html_document` builds a
+standalone page with inline `<style>`/`<script>`, which suits a desktop WebView
+and will trip a strict CSP.)
+
+Both functions are synchronous and CPU-bound. For large documents, run them on
+`spawn_blocking` rather than holding an async worker.
+
+Two things marco-core does **not** do for you: it does not bound render time or
+output size, and it does not know your CSP. Neither is a substitute for the
+policies above, and the policies are not a substitute for either.
+
 ### Errors
 
 `parse` and `render` return `Result<T, MarcoError>`. It is **`Send + Sync`**, so
@@ -152,7 +181,7 @@ let completions = provider.completions(""); // context-aware suggestions
 - GFM task list checkboxes and admonitions render as SVG icons (no CSS-only dependency)
 - Render-time security policies for untrusted input — raw HTML and unsafe URL schemes, see [Rendering Markdown you did not write](#rendering-markdown-you-did-not-write)
 - Errors are a concrete `Send + Sync` enum, so `?` works with `anyhow` and across `.await` — see [Errors](#errors)
-- 737 tests — 569 unit, 137 integration, 31 doc — all green on the default feature set
+- 726 tests — 578 unit, 129 integration, 19 doc — all green on the default feature set
 
 ## When to use marco-core
 
@@ -212,7 +241,29 @@ marco-core = { version = "1.3", default-features = false, features = ["render-sy
 | `parallel-render` | Fan out per-code-block syntax highlighting across cores at render time |
 | `parallel-parse` | Fan out inline parsing of independent top-level blocks (paragraphs, table cells, definition terms, footnote bodies) across cores |
 
-A `--no-default-features` build still includes parse + basic render.
+A `--no-default-features` build still includes parse + basic render — and the
+security policies, which are never behind a feature flag.
+
+### On a server
+
+Default features assume a desktop editor. On a server you probably want less:
+`render-math` and `render-diagrams` pull in KaTeX and Mermaid and need
+`libfontconfig-dev` on Linux; `file-logger` wants a home directory to write to;
+the `intelligence-*` flags exist for an editor UI and do nothing for a rendering
+endpoint.
+
+```toml
+marco-core = { version = "2.0", default-features = false, features = [
+    "render-syntax-highlighting",   # drop this too if you highlight client-side
+    "parallel-render",
+] }
+```
+
+Diagrams are worth a thought rather than a default. `render-diagrams` renders
+Mermaid to SVG at request time, so an untrusted diagram is CPU your request
+handler pays for. Only `MERMAID_MAX_CHARS` bounds it today; there is no render
+timeout, so put your own limit in front of it if you enable this for untrusted
+input.
 
 `parallel-render` and `parallel-parse` pull in `rayon` for a real OS thread
 pool. Both produce byte-for-byte/AST-identical output to the sequential

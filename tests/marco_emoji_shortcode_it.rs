@@ -1,4 +1,4 @@
-use marco_core::parser::ast::NodeKind;
+use marco_core::NodeKind;
 
 #[test]
 fn test_emoji_shortcode_parses_mid_text_as_separate_text_node() {

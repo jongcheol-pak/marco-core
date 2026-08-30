@@ -1,5 +1,5 @@
 use crossterm::style::{Attribute, Color, SetAttribute, SetForegroundColor, ResetColor};
-use marco_core::parser::position::Span;
+use marco_core::Span;
 use marco_core::{Document, Node, NodeKind};
 use std::fmt::Write as FmtWrite;
 
@@ -403,7 +403,7 @@ fn is_stray_delimiter(kind: &NodeKind) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use marco_core::parser::position::{Position, Span};
+    use marco_core::{Position, Span};
 
     #[test]
     fn print_ast_includes_span_metadata_when_enabled() {

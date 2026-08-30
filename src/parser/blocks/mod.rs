@@ -42,7 +42,7 @@ pub mod marco_tab_blocks_parser;
 pub(crate) mod parallel_inline;
 
 /// Re-export shared block parser utilities.
-pub use shared::{dedent_list_item_content, to_parser_span, to_parser_span_range, GrammarSpan};
+pub use shared::{dedent_list_item_content, GrammarSpan};
 
 use super::ast::Document;
 use crate::grammar::blocks as grammar;

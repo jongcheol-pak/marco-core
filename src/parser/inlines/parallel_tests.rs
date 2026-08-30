@@ -15,12 +15,18 @@
 //! these aren't brittle against unrelated AST changes elsewhere. This is
 //! the same pattern used for the Phase 3 `parallel-render` node-address-key
 //! regression test.
-#![cfg(feature = "parallel-parse")]
+//!
+//! # Why this lives inside the crate
+//!
+//! It calls `parse_inlines_from_span`, whose argument is a `GrammarSpan` —
+//! `nom_locate::LocatedSpan`. Re-exporting that to let an integration test
+//! reach it would put `nom` in the public API and make swapping the parser
+//! library a breaking change. A unit test is inside the privacy boundary and
+//! needs no such exposure, so the test moved rather than the API widening.
 
-use marco_core::parser::inlines::parse_inlines_from_span;
-use marco_core::parser::shared::GrammarSpan;
-use marco_core::parser::ParseOptions;
-use marco_core::{parse, parse_with_options, Node, NodeKind};
+use crate::parser::inlines::parse_inlines_from_span;
+use crate::parser::shared::GrammarSpan;
+use crate::parser::{parse, parse_with_options, Node, NodeKind, ParseOptions};
 
 /// Recursively assert two nodes are structurally identical: same `kind`
 /// (compared via `Debug`, since `NodeKind` has no `PartialEq`) and
@@ -273,10 +279,9 @@ fn deferred_footnote_definition_body_matches_direct_inline_parse() {
     // (`parser::parse_inlines`), not `parse_inlines_from_span` — content is
     // hand-assembled, not a contiguous span. Same expected output either
     // way for this single-line case.
-    let expected = marco_core::parser::parse_inlines(
-        "A note with **bold** and a [link](https://example.com).",
-    )
-    .expect("expected-side inline parse failed");
+    let expected =
+        crate::parser::parse_inlines("A note with **bold** and a [link](https://example.com).")
+            .expect("expected-side inline parse failed");
     assert_children_equal(&paragraph.children, &expected, "footnote definition body");
 }
 

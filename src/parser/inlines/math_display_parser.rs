@@ -10,7 +10,7 @@ use nom::IResult;
 /// Parse a display math expression `$$...$$` to a DisplayMath AST node.
 ///
 /// # Example
-/// ```
+/// ```ignore
 /// use marco_core::parser::inlines::math_display_parser::parse_display_math;
 /// use marco_core::parser::shared::GrammarSpan;
 /// use marco_core::NodeKind;

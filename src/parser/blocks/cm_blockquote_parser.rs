@@ -26,7 +26,7 @@ use crate::parser::ast::{Document, Node, NodeKind};
 /// 4. Recursively parses the cleaned content as block elements
 ///
 /// # Example
-/// ```
+/// ```ignore
 /// use marco_core::parser::blocks::cm_blockquote_parser::parse_blockquote;
 /// use marco_core::parser::shared::GrammarSpan;
 /// use marco_core::{Document, NodeKind};

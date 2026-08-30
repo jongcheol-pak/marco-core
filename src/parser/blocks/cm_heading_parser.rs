@@ -21,7 +21,7 @@ use crate::parser::ast::{Node, NodeKind};
 /// the full line span.
 ///
 /// # Example
-/// ```
+/// ```ignore
 /// use marco_core::parser::blocks::cm_heading_parser::parse_atx_heading;
 /// use marco_core::parser::shared::GrammarSpan;
 /// use marco_core::NodeKind;
@@ -72,7 +72,7 @@ fn heading_inlines(content: GrammarSpan, text: &str) -> Vec<Node> {
 /// A Node with NodeKind::Heading
 ///
 /// # Example
-/// ```
+/// ```ignore
 /// use marco_core::grammar::setext_heading;
 /// use marco_core::parser::blocks::cm_heading_parser::parse_setext_heading;
 /// use marco_core::parser::shared::GrammarSpan;

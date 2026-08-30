@@ -39,6 +39,8 @@ pub use editor::{compute_highlights, compute_highlights_with_source, Highlight, 
 pub use editor::{get_hover_info, get_position_span, HoverInfo};
 #[cfg(feature = "intelligence-completions")]
 pub use editor::{get_markdown_completions, CompletionItem};
+/// Re-export table-of-contents extraction and generation.
+pub use toc::*;
 
 use crate::parser::Document;
 #[cfg(feature = "intelligence-hover")]

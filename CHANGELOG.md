@@ -7,11 +7,40 @@ Version scheme note: `marco-core` and `marco-shared` follow independent semver f
 
 ## [Unreleased]
 
-Work towards **server-rendering**: making `marco-core` usable from a Rust web
-backend that renders Markdown written by one user and displays it to another.
-Until now the crate targeted a desktop editor, where the document author and the
+**marco-core can now be used as the Markdown renderer in a Rust web backend.**
+
+Until now it targeted a desktop editor, where the document author and the
 document reader are the same person and raw HTML passing through is correct.
-They are not the same person on a server.
+On a server they are not the same person, and the same behaviour lets anyone who
+can write a comment run script in the browser of anyone who reads it.
+
+Three things had to change for the backend case, and all three are in this
+release:
+
+- **Rendering is governed by explicit policies.** `RenderOptions::untrusted()`
+  escapes raw HTML and restricts URLs to known-safe schemes.
+  `RenderOptions::default()` is now the safe one; `::commonmark()` is the named
+  opt-out for input you trust.
+- **Errors are `Send + Sync`.** `parse` and `render` return `MarcoError`
+  instead of `Box<dyn Error>`, so `?` works in an `anyhow::Result` handler and
+  the error can cross an `.await`. Failures are also distinguishable, so a
+  malformed document can be a 400 and a broken subsystem a 500.
+- **Documents are never silently discarded.** Past the parser's nesting limit it
+  returned an empty document and `Ok`; a server would have served a blank page
+  with a 200.
+
+```rust
+use marco_core::{parse, render, MarcoError, RenderOptions};
+
+async fn render_comment(body: String) -> Result<String, MarcoError> {
+    let doc = parse(&body)?;
+    render(&doc, &RenderOptions::untrusted())
+}
+```
+
+`render` returns a fragment for your own template and your own CSP; see the
+README's *As a web backend* and *On a server* sections for the feature profile,
+which is not the default one.
 
 This is a **breaking** release. Each change below carries its migration.
 
@@ -125,6 +154,36 @@ let opts = RenderOptions::commonmark().with_syntax_highlighting(true);
 
 Configuration serialized by 1.x still loads: both new fields are
 `#[serde(default)]`, and absent data deserializes to the safe policies.
+
+#### The internal module tree is private
+
+The public API is now **the crate root plus the `parser`, `render`,
+`intelligence` and `logic` module roots**. Their submodules are `pub(crate)`.
+
+Most paths are unaffected, because the module roots re-export what they contain:
+`render::render`, `render::PageViewOptions`, `render::wrap_preview_html_document`,
+`intelligence::DiagnosticSeverity`, `parser::parse` and the rest keep working. A
+path that reaches *into* a submodule does not:
+
+| Before | After |
+|---|---|
+| `parser::position::Span` | `marco_core::Span` |
+| `parser::ast::NodeKind` | `marco_core::NodeKind` |
+| `intelligence::toc::TocEntry` | `intelligence::TocEntry` |
+| `render::diagram::render_mermaid_diagram` | `render::render_mermaid_diagram` |
+| `render::plarform_mentions::profile_url` | `render::profile_url` |
+| `render::code_languages::KNOWN_CODE_LANGUAGES` | `render::KNOWN_CODE_LANGUAGES` |
+
+The AST types are also re-exported from the crate root as one set — `Span`,
+`Position`, `ReferenceMap`, `AdmonitionKind`, `AdmonitionStyle`,
+`TableAlignment` alongside `Document`, `Node` and `NodeKind`. They were public
+but unnameable: a consumer could read `doc.references` without being able to
+write its type, or match `NodeKind::Admonition` without being able to compare
+its `kind`.
+
+Removed as unreachable dead code, each verified unreferenced beforehand:
+`ListParserState`, `compute_line_start_offset`, and the `to_parser_span`
+re-exports from `blocks::shared` / `inlines::shared`.
 
 #### `render_mermaid_diagram` takes an `allow_interaction` argument
 

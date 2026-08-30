@@ -188,8 +188,8 @@ fn parse_footnote_definition_impl(
     let (rest, _taken) = input.take_split(consumed_len);
     // Use the exclusive (non-inclusive) version so the span ends at the first
     // byte of `rest`, not at the end of the entire remaining document.
-    // `blocks::shared::to_parser_span_range` is aliased to the *inclusive*
-    // variant; `crate::parser::shared::to_parser_span_range` is exclusive.
+    // `blocks::shared` re-exports the *inclusive* range helper under the
+    // unsuffixed name; `crate::parser::shared::opt_span_range` is exclusive.
     let span = crate::parser::shared::opt_span_range(input, rest);
 
     // Parse the definition content as paragraph-like blocks.

@@ -5,36 +5,45 @@
 
 use crate::error::MarcoError;
 
+// The submodules are private: the public contract is this module's root plus
+// the crate root. Every item below is re-exported, so `render::X` keeps
+// resolving while `render::markdown::X` no longer does.
+
 /// Base stylesheet used by preview rendering.
 pub mod base_css;
 /// Language normalization and metadata for code blocks.
-pub mod code_languages;
+pub(crate) mod code_languages;
 /// Diagram rendering helpers (for example Mermaid).
 #[cfg(feature = "render-diagrams")]
-pub mod diagram;
+pub(crate) mod diagram;
 /// Core Markdown AST to HTML renderer.
-pub mod markdown;
+pub(crate) mod markdown;
 /// Math rendering helpers.
 #[cfg(feature = "render-math")]
-pub mod math;
+pub(crate) mod math;
 /// Public render configuration options.
-pub mod options;
+pub(crate) mod options;
 /// Platform mention rendering helpers.
-pub mod plarform_mentions;
+pub(crate) mod plarform_mentions;
 /// HTML document wrappers for preview pages.
-pub mod preview_document;
+pub(crate) mod preview_document;
 /// Syntax highlighting support based on syntect.
 #[cfg(feature = "render-syntax-highlighting")]
-pub mod syntect_highlighter;
+pub(crate) mod syntect_highlighter;
 /// Theme metadata: parses `--theme-*` descriptive tokens from theme CSS.
-pub mod theme_meta;
+pub(crate) mod theme_meta;
 
 /// Re-export code language helpers.
 pub use code_languages::*;
+/// Re-export diagram rendering.
+#[cfg(feature = "render-diagrams")]
+pub use diagram::*;
 /// Re-export core HTML render helpers.
 pub use markdown::*;
 /// Re-export render options.
 pub use options::*;
+/// Re-export platform mention helpers.
+pub use plarform_mentions::*;
 /// Re-export preview document helpers.
 pub use preview_document::*;
 /// Re-export syntax highlighter helpers.
