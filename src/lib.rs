@@ -30,14 +30,35 @@ pub mod render;
 
 /// Main intelligence provider used by downstream editor integrations.
 pub use intelligence::MarkdownIntelligenceProvider;
+/// Diagnostic reporting types.
+///
+/// [`MarkdownIntelligenceProvider::diagnostics`] returns `Vec<Diagnostic>` and
+/// [`MarkdownIntelligenceProvider::diagnostics_with_options`] takes a
+/// [`DiagnosticsOptions`], so a consumer cannot use either without these.
+#[cfg(feature = "intelligence-diagnostics")]
+pub use intelligence::{
+    Diagnostic, DiagnosticCode, DiagnosticSeverity, DiagnosticsOptions, DiagnosticsProfile,
+};
 /// Parse Markdown text into a [`Document`] AST using default options.
 pub use parser::parse;
 /// Parse Markdown with explicit runtime options (position tracking, math, diagrams).
 pub use parser::parse_with_options;
 /// Runtime parse configuration; pass to [`parse_with_options`] to skip expensive work.
 pub use parser::ParseOptions;
-/// Core AST types used by parser, renderer, and intelligence modules.
-pub use parser::{Document, Node, NodeKind};
+/// The AST. [`parse`] produces a [`Document`]; [`render`] consumes one.
+///
+/// Exported as one set because it is one unit: [`Node`] carries a [`Span`],
+/// [`Document`] carries a [`ReferenceMap`], and [`NodeKind`] variants carry
+/// [`AdmonitionKind`], [`AdmonitionStyle`] and [`TableAlignment`]. Walking the
+/// AST means naming all of them, so exporting only some of them would leave a
+/// consumer able to *see* a field it cannot *name*.
+///
+/// Adding a variant that carries a new type means exporting that type here too.
+/// `tests/public_api_closure_it.rs` fails to compile if that is forgotten.
+pub use parser::{
+    AdmonitionKind, AdmonitionStyle, Document, Node, NodeKind, Position, ReferenceMap, Span,
+    TableAlignment,
+};
 /// Eagerly warm `parallel-render`'s thread pool and, for each given
 /// language, its syntax highlighter — call at application startup with your
 /// expected languages to move most of that one-time cost off the first
