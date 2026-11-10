@@ -9,6 +9,7 @@
 pub mod shared;
 
 // Emphasis/strong delimiter-stack resolution (CommonMark spec 6.2, Appendix A).
+mod cjk;
 mod emphasis;
 
 // Individual inline parser modules
@@ -238,8 +239,10 @@ pub fn parse_inlines_from_span(span: GrammarSpan) -> Result<Vec<Node>, Box<dyn s
         // replaced).
         if first_byte == b'*' || first_byte == b'_' {
             let consumed_len = remaining.location_offset() - span.location_offset();
-            let before = span.fragment()[..consumed_len].chars().next_back();
-            let (delim, rest) = tokenize_delimiter_run(remaining, before);
+            let mut preceding = span.fragment()[..consumed_len].chars().rev();
+            let before = preceding.next();
+            let two_before = preceding.next();
+            let (delim, rest) = tokenize_delimiter_run(remaining, two_before, before);
             items.push(Item::Delim(delim));
             remaining = rest;
             continue;

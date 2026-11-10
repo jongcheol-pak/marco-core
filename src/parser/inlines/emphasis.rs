@@ -12,6 +12,7 @@
 //! stack (an `openers_bottom` bound per the spec skips re-scanning dead
 //! ranges, which is what keeps this linear on adversarial input).
 
+use super::cjk;
 use crate::parser::ast::{Node, NodeKind};
 use crate::parser::inlines::shared::{opt_span_range, GrammarSpan};
 use nom::Input;
@@ -128,36 +129,128 @@ fn is_unicode_punctuation(c: char) -> bool {
     )
 }
 
-/// Classify a `*`/`_` run given the characters immediately before and after
-/// it in the source (`None` = start/end of the span being parsed, treated
-/// as whitespace per spec: "the beginning and the end of the line count as
-/// Unicode whitespace").
-fn classify(ch: char, before: Option<char>, after: Option<char>) -> (bool, bool) {
-    let before_is_ws = before.map(is_unicode_whitespace).unwrap_or(true);
-    let after_is_ws = after.map(is_unicode_whitespace).unwrap_or(true);
-    let before_is_punct = before.map(is_unicode_punctuation).unwrap_or(false);
-    let after_is_punct = after.map(is_unicode_punctuation).unwrap_or(false);
+#[derive(Clone, Copy, Default)]
+struct CharClass {
+    whitespace: bool,
+    punctuation: bool,
+    cjk: bool,
+    ivs: bool,
+    non_emoji_vs: bool,
+}
 
-    let left_flanking = !after_is_ws && (!after_is_punct || before_is_ws || before_is_punct);
-    let right_flanking = !before_is_ws && (!before_is_punct || after_is_ws || after_is_punct);
+impl CharClass {
+    fn of(c: Option<char>) -> Self {
+        let Some(c) = c else {
+            return Self {
+                whitespace: true,
+                ..Self::default()
+            };
+        };
+        if is_unicode_whitespace(c) {
+            return Self {
+                whitespace: true,
+                ..Self::default()
+            };
+        }
+        if cjk::is_non_emoji_general_use_vs(c) {
+            return Self {
+                non_emoji_vs: true,
+                ..Self::default()
+            };
+        }
+        if cjk::is_ivs(c) {
+            return Self {
+                ivs: true,
+                ..Self::default()
+            };
+        }
+        Self {
+            punctuation: is_unicode_punctuation(c),
+            cjk: cjk::is_cjk(c),
+            ..Self::default()
+        }
+    }
+
+    fn preceding(before: Option<char>, two_before: Option<char>) -> Self {
+        let class = Self::of(before);
+        if !class.non_emoji_vs {
+            return class;
+        }
+        let modified = Self::of(two_before);
+        if modified.whitespace {
+            return class;
+        }
+        if is_cjk_ambiguous_punctuation(two_before, before) {
+            return Self {
+                punctuation: true,
+                cjk: true,
+                ..Self::default()
+            };
+        }
+        Self {
+            ivs: false,
+            ..modified
+        }
+    }
+
+    fn non_cjk_punctuation(self) -> bool {
+        self.punctuation && !self.cjk
+    }
+
+    fn space_or_non_cjk_punctuation(self) -> bool {
+        self.whitespace || self.non_cjk_punctuation()
+    }
+
+    fn space_or_punctuation(self) -> bool {
+        self.whitespace || self.punctuation
+    }
+}
+
+fn is_cjk_ambiguous_punctuation(main: Option<char>, vs: Option<char>) -> bool {
+    vs == Some('\u{FE01}')
+        && matches!(
+            main,
+            Some('\u{2018}' | '\u{2019}' | '\u{201C}' | '\u{201D}')
+        )
+}
+
+/// Classify a `*`/`_` run given the two characters before it and the one
+/// after it in the source (`None` = start/end of the span being parsed,
+/// treated as whitespace per spec), with the CJK-friendly amendment
+/// (https://github.com/tats-u/markdown-cjk-friendly/blob/main/specification.md).
+fn classify(
+    ch: char,
+    two_before: Option<char>,
+    before: Option<char>,
+    after: Option<char>,
+) -> (bool, bool) {
+    let before = CharClass::preceding(before, two_before);
+    let after = CharClass::of(after);
+
+    let open = !after.space_or_non_cjk_punctuation()
+        || after.non_cjk_punctuation()
+            && (before.space_or_non_cjk_punctuation() || before.cjk || before.ivs);
+    let close = !before.space_or_non_cjk_punctuation()
+        || before.non_cjk_punctuation() && (after.space_or_non_cjk_punctuation() || after.cjk);
 
     if ch == '*' {
-        (left_flanking, right_flanking)
+        (open, close)
     } else {
         // '_' has the extra intraword restriction (spec rules 3/4, 7/8).
         (
-            left_flanking && (!right_flanking || before_is_punct),
-            right_flanking && (!left_flanking || after_is_punct),
+            open && (before.space_or_punctuation() || !close),
+            close && (after.space_or_punctuation() || !open),
         )
     }
 }
 
 /// Tokenize a `*`/`_` run starting at `remaining` (which must begin with
-/// `ch`), given the character preceding `remaining` in the top-level span
+/// `ch`), given the two characters preceding `remaining` in the top-level span
 /// (or `None` at the start of the span). Returns the built [`Delimiter`]
 /// and the rest of the input after the run.
 pub(super) fn tokenize_delimiter_run(
     remaining: GrammarSpan,
+    two_before: Option<char>,
     before: Option<char>,
 ) -> (Delimiter, GrammarSpan) {
     let ch = remaining
@@ -172,7 +265,7 @@ pub(super) fn tokenize_delimiter_run(
         .count();
     let (rest, run) = remaining.take_split(run_len);
     let after = rest.fragment().chars().next();
-    let (can_open, can_close) = classify(ch, before, after);
+    let (can_open, can_close) = classify(ch, two_before, before, after);
     (
         Delimiter {
             run,
