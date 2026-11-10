@@ -37,21 +37,52 @@ pub fn inline_math(input: Span) -> IResult<Span, Span> {
     let content_str = input.fragment();
 
     // Check for immediate second $ (would be display math)
-    if content_str.starts_with('$') {
-        return Err(nom::Err::Error(nom::error::Error::new(
-            input,
-            nom::error::ErrorKind::Tag,
-        )));
+    if content_str.starts_with('$') || opens_like_text(content_str) {
+        return not_math(input);
     }
 
     // Find the closing delimiter
     let (input, content) = take_until("$")(input)?;
+    if content
+        .fragment()
+        .chars()
+        .last()
+        .is_some_and(char::is_whitespace)
+    {
+        return not_math(input);
+    }
 
     // Consume closing delimiter
     let (input, _) = tag("$")(input)?;
+    if input.fragment().starts_with(|c: char| c.is_ascii_digit()) {
+        return not_math(input);
+    }
 
     log::debug!("Inline math content: {:?}", content.fragment());
     Ok((input, content))
+}
+
+fn not_math(at: Span) -> IResult<Span, Span> {
+    Err(nom::Err::Error(nom::error::Error::new(
+        at,
+        nom::error::ErrorKind::Tag,
+    )))
+}
+
+fn opens_like_text(after_dollar: &str) -> bool {
+    if after_dollar.starts_with(char::is_whitespace) {
+        return true;
+    }
+    if !after_dollar.starts_with(|c: char| c.is_ascii_digit()) {
+        return false;
+    }
+    let number_end = after_dollar
+        .find(|c: char| !(c.is_ascii_digit() || c == ',' || c == '.'))
+        .unwrap_or(after_dollar.len());
+    after_dollar[number_end..]
+        .chars()
+        .next()
+        .is_none_or(|c| c.is_whitespace() || matches!(c, '!' | ')' | ':' | ';' | '?'))
 }
 
 #[cfg(test)]
@@ -75,6 +106,44 @@ mod tests {
         assert!(result.is_ok());
         let (_, content) = result.unwrap();
         assert_eq!(*content.fragment(), "\\frac{a}{b}");
+    }
+
+    fn parses_as_math(text: &str) -> Option<String> {
+        inline_math(Span::new(text))
+            .ok()
+            .map(|(_, content)| content.fragment().to_string())
+    }
+
+    #[test]
+    fn prices_are_not_math() {
+        for text in [
+            "$5 and $10",
+            "$10.",
+            "$5 + tax$ is the cost.",
+            "$5, and f(x)",
+            "$10; $5",
+            "$5 + 2$ typed",
+            "$HOME and $PATH stay",
+            "$PATH; $HOME",
+            "$ x$",
+            "$a$5",
+        ] {
+            assert_eq!(parses_as_math(text), None, "{text:?} must stay text");
+        }
+    }
+
+    #[test]
+    fn math_still_parses() {
+        for (text, math) in [
+            ("$x^2$ for", "x^2"),
+            ("$n$th term", "n"),
+            ("$5+2$, and", "5+2"),
+            ("$!x$.", "!x"),
+            ("$2x$ more", "2x"),
+            ("$x^*$s", "x^*"),
+        ] {
+            assert_eq!(parses_as_math(text).as_deref(), Some(math), "{text:?}");
+        }
     }
 
     #[test]

@@ -6,8 +6,8 @@
     "_note": "Comment entries are ignored by the fixture loader"
   },
   {
-    "markdown": "Inline $\\frac{a}{ $ test\n",
-    "html": "<p>Inline <code class=\"math-error\" title=\"Failed to render math\">\\frac{a}{ </code> test</p>\n",
+    "markdown": "Inline $\\frac{a}{$ test\n",
+    "html": "<p>Inline <code class=\"math-error\" title=\"Failed to render math\">\\frac{a}{</code> test</p>\n",
     "example": 3301,
     "start_line": 1,
     "end_line": 1,
